@@ -1,4 +1,14 @@
-#include <fastdownloader.h>
+#include <fastdownloader_p.h>
+
+FastDownloaderPrivate::FastDownloaderPrivate()
+{
+
+}
+
+FastDownloaderPrivate::~FastDownloaderPrivate()
+{
+
+}
 
 FastDownloader::FastDownloader(const QUrl& url, int numberOfSimultaneousConnections, QObject* parent)
     : QObject(parent)
@@ -29,4 +39,44 @@ int FastDownloader::numberOfSimultaneousConnections() const
 void FastDownloader::setNumberOfSimultaneousConnections(int numberOfSimultaneousConnections)
 {
     m_numberOfSimultaneousConnections = numberOfSimultaneousConnections;
+}
+
+bool FastDownloader::isStarted() const
+{
+
+}
+
+bool FastDownloader::isRunning() const
+{
+
+}
+
+bool FastDownloader::isResolved() const
+{
+
+}
+
+bool FastDownloader::isFinished() const
+{
+
+}
+
+bool FastDownloader::progress(int chunk) const
+{
+
+}
+
+void FastDownloader::start()
+{
+
+}
+
+void FastDownloader::stop()
+{
+
+}
+
+void FastDownloader::abort()
+{
+
 }
