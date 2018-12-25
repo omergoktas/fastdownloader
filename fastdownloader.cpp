@@ -61,7 +61,62 @@ bool FastDownloader::isFinished() const
 
 }
 
-bool FastDownloader::progress(int chunk) const
+bool FastDownloader::isSimultaneousDownloadAvailable() const
+{
+
+}
+
+qreal FastDownloader::progress(int chunk) const
+{
+
+}
+
+qint64 FastDownloader::size(int chunk) const
+{
+
+}
+
+qint64 FastDownloader::bytesAvailable(int chunk) const
+{
+
+}
+
+qint64 FastDownloader::skip(int chunk, qint64 maxSize)
+{
+
+}
+
+qint64 FastDownloader::read(int chunk, char* data, qint64 maxSize)
+{
+
+}
+
+QByteArray FastDownloader::read(int chunk, qint64 maxSize)
+{
+
+}
+
+QByteArray FastDownloader::readAll(int chunk)
+{
+
+}
+
+qint64 FastDownloader::readLine(int chunk, char* data, qint64 maxSize)
+{
+
+}
+
+QByteArray FastDownloader::readLine(int chunk, qint64 maxSize)
+{
+
+}
+
+bool FastDownloader::atEnd(int chunk) const
+{
+
+}
+
+QString FastDownloader::errorString(int chunk) const
 {
 
 }
