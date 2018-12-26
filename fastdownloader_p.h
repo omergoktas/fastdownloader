@@ -6,8 +6,7 @@
 
 struct Segment
 {
-    int index;
-
+    QNetworkReply* reply;
 };
 
 class FastDownloaderPrivate : public QObjectPrivate
@@ -17,12 +16,20 @@ public:
     FastDownloaderPrivate();
 
     bool resolveUrl();
-    QNetworkRequest makeRequest() const;
+    QNetworkRequest makeRequest(bool initial) const;
+    void connectSegment(const Segment& segment);
 
     QScopedPointer<QNetworkAccessManager> manager;
-    bool resolved;
+    bool running;
     QUrl resolvedUrl;
+    QList<Segment> segments;
 
+    void _q_redirected(const QUrl& url);
+    void _q_finished();
+    void _q_readyRead();
+    void _q_error(QNetworkReply::NetworkError code);
+    void _q_sslErrors(const QList<QSslError>& errors);
+    void _q_downloadProgress(qint64 bytesReceived, qint64 bytesTotal);
 };
 
 #endif // FASTDOWNLOADER_P_H

@@ -2,62 +2,82 @@
 
 FastDownloaderPrivate::FastDownloaderPrivate() : QObjectPrivate()
     , manager(new QNetworkAccessManager)
-    , resolved(false)
+    , running(false)
 {
 
 }
 
 bool FastDownloaderPrivate::resolveUrl()
 {
-    Q_Q(FastDownloader);
+    QNetworkReply* reply = manager->get(makeRequest(true));
+    if (!reply)
+        return false;
 
-    resolvedUrl = q->url();
-
-    QNetworkReply* reply = manager->get(makeRequest());
-
-    QObject::connect(reply, &QNetworkReply::downloadProgress,
-                             [=] (qint64 bytesReceived, qint64 bytesTotal) {
-        qDebug() << bytesReceived << bytesTotal << "\t\t\t"
-                 << QString("%%1").arg(QString::number(100 * ((qreal)bytesReceived / bytesTotal)));
-    });
-
-    QObject::connect(reply, QOverload<QNetworkReply::NetworkError>::of(&QNetworkReply::error),
-                     [=] (QNetworkReply::NetworkError e) {
-        qDebug() << e;
-    });
-    QObject::connect(reply, &QNetworkReply::sslErrors,
-                     [=](const QList<QSslError>& e) {
-        qDebug() << e;
-        reply->ignoreSslErrors();
-    });
-
-    QObject::connect(reply, &QNetworkReply::finished, [=] {
-        qDebug() << "bitti lo!" << reply->readAll().size();
-    });
-    QObject::connect(reply, &QNetworkReply::redirected, [=] (const QUrl& url) {
-        //qDebug() << "redirected: " << url;
-    });
-    QObject::connect(reply, &QIODevice::readyRead, [=] {
-        //qDebug() << "gelen var";
-        static bool first = false;
-        if (first)
-            return;
-        first = true;
-
-        qDebug() << reply->rawHeaderPairs();
-//        qDebug() << reply->readAll().size();
-    });
+    Segment initialSegment;
+    initialSegment.reply = reply;
+    connectSegment(initialSegment);
+    return true;
 }
 
-QNetworkRequest FastDownloaderPrivate::makeRequest() const
+QNetworkRequest FastDownloaderPrivate::makeRequest(bool initial) const
 {
     Q_Q(const FastDownloader);
     QNetworkRequest request;
     request.setUrl(resolvedUrl);
-    request.setAttribute(QNetworkRequest::FollowRedirectsAttribute, true);
+    request.setAttribute(QNetworkRequest::FollowRedirectsAttribute, initial);
     request.setRawHeader("User-Agent", "FastDownloader");
-    request.setMaximumRedirectsAllowed(q->maxRedirectsAllowed());
+    request.setMaximumRedirectsAllowed(initial ? q->maxRedirectsAllowed() : 0);
     return request;
+}
+
+void FastDownloaderPrivate::connectSegment(const Segment& segment)
+{
+    Q_Q(FastDownloader);
+
+    QObject::connect(segment.reply, SIGNAL(downloadProgress(qint64,qint64)),
+                     q, SLOT(_q_downloadProgress(qint64,qint64)));
+    QObject::connect(segment.reply, SIGNAL(error(QNetworkReply::NetworkError)),
+                     q, SLOT(error(QNetworkReply::NetworkError)));
+    QObject::connect(segment.reply, SIGNAL(sslErrors(QList<QSslError>)),
+                     q, SLOT(_q_sslErrors(QList<QSslError>)));
+    QObject::connect(segment.reply, SIGNAL(finished()),
+                     q, SLOT(_q_finished()));
+    QObject::connect(segment.reply, SIGNAL(redirected(QUrl)),
+                     q, SLOT(_q_redirected(QUrl)));
+    QObject::connect(segment.reply, SIGNAL(readyRead()),
+                     q, SLOT(_q_readyRead()));
+
+    segments.append(segment);
+}
+
+void FastDownloaderPrivate::_q_redirected(const QUrl& url)
+{
+
+}
+
+void FastDownloaderPrivate::_q_finished()
+{
+
+}
+
+void FastDownloaderPrivate::_q_readyRead()
+{
+
+}
+
+void FastDownloaderPrivate::_q_error(QNetworkReply::NetworkError code)
+{
+
+}
+
+void FastDownloaderPrivate::_q_sslErrors(const QList<QSslError>& errors)
+{
+
+}
+
+void FastDownloaderPrivate::_q_downloadProgress(qint64 bytesReceived, qint64 bytesTotal)
+{
+
 }
 
 FastDownloader::FastDownloader(const QUrl& url, int segmentSize, QObject* parent)
@@ -74,6 +94,12 @@ FastDownloader::FastDownloader(QObject* parent) : FastDownloader(QUrl(), 5, pare
 
 FastDownloader::~FastDownloader()
 {
+}
+
+QUrl FastDownloader::resolvedUrl() const
+{
+    Q_D(const FastDownloader);
+    return d->resolvedUrl;
 }
 
 QUrl FastDownloader::url() const
@@ -97,21 +123,6 @@ void FastDownloader::setSegmentSize(int segmentSize)
 }
 
 bool FastDownloader::isRunning() const
-{
-
-}
-
-bool FastDownloader::isResolved() const
-{
-
-}
-
-qreal FastDownloader::progress(int segment) const
-{
-
-}
-
-qint64 FastDownloader::size(int segment) const
 {
 
 }
@@ -180,6 +191,9 @@ bool FastDownloader::start()
         return false;
     }
 
+    d->running = true;
+    d->resolvedUrl = m_url;
+
     return d->resolveUrl();
 }
 
@@ -212,3 +226,5 @@ void FastDownloader::setMaxRedirectsAllowed(int maxRedirectsAllowed)
 {
     m_maxRedirectsAllowed = maxRedirectsAllowed;
 }
+
+#include "moc_fastdownloader.cpp"

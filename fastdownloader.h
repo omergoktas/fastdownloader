@@ -1,13 +1,15 @@
 #ifndef FASTDOWNLOADER_H
 #define FASTDOWNLOADER_H
 
+#include <fastdownloader_global.h>
+
 #include <QObject>
 #include <QUrl>
 #include <QSslError>
 #include <QNetworkReply>
 
 class FastDownloaderPrivate;
-class FastDownloader : public QObject
+class FASTDOWNLOADER_EXPORT FastDownloader : public QObject
 {
     Q_OBJECT
     Q_DISABLE_COPY(FastDownloader)
@@ -20,6 +22,8 @@ public:
 
     enum { MAX_SEGMENTS = 6 };
 
+    QUrl resolvedUrl() const;
+
     QUrl url() const;
     void setUrl(const QUrl& url);
 
@@ -30,10 +34,7 @@ public:
     void setMaxRedirectsAllowed(int maxRedirectsAllowed);
 
     bool isRunning() const;
-    bool isResolved() const;
 
-    qreal progress(int segment = -1) const;
-    qint64 size(int segment = -1) const;
     qint64 bytesAvailable(int segment = -1) const;
 
     qint64 skip(int segment, qint64 maxSize);
@@ -60,13 +61,20 @@ protected:
 
 signals:
     void done();
-    void resolved();
+    void redirected(const QUrl& url);
     void finished(int segment);
     void readyRead(int segment);
-    void progressChanged(int segment, qint64 bytesReceived, qint64 bytesTotal);
-    void redirected(const QUrl &url);
-    void error(QNetworkReply::NetworkError code);
-    void sslErrors(const QList<QSslError>& errors);
+    void error(int segment, QNetworkReply::NetworkError code);
+    void sslErrors(int segment, const QList<QSslError>& errors);
+    void downloadProgress(int segment, qint64 bytesReceived, qint64 bytesTotal);
+
+private:
+    Q_PRIVATE_SLOT(d_func(), void _q_redirected(const QUrl&))
+    Q_PRIVATE_SLOT(d_func(), void _q_finished())
+    Q_PRIVATE_SLOT(d_func(), void _q_readyRead())
+    Q_PRIVATE_SLOT(d_func(), void _q_error(QNetworkReply::NetworkError))
+    Q_PRIVATE_SLOT(d_func(), void _q_sslErrors(const QList<QSslError>&))
+    Q_PRIVATE_SLOT(d_func(), void _q_downloadProgress(qint64, qint64))
 
 private:
     QUrl m_url;
