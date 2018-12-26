@@ -10,61 +10,68 @@ class FastDownloaderPrivate;
 class FastDownloader : public QObject
 {
     Q_OBJECT
+    Q_DISABLE_COPY(FastDownloader)
     Q_DECLARE_PRIVATE(FastDownloader)
 
 public:
-    explicit FastDownloader(const QUrl& url,
-                            int numberOfSimultaneousConnections = 5, // 6 max
-                            QObject *parent = nullptr);
-    explicit FastDownloader(QObject *parent = nullptr);
+    explicit FastDownloader(const QUrl& url, int segmentSize = 5, QObject* parent = nullptr);
+    explicit FastDownloader(QObject* parent = nullptr);
+    ~FastDownloader() override;
+
+    enum { MAX_SEGMENTS = 6 };
 
     QUrl url() const;
     void setUrl(const QUrl& url);
 
-    int numberOfSimultaneousConnections() const;
-    void setNumberOfSimultaneousConnections(int numberOfSimultaneousConnections);
+    int segmentSize() const;
+    void setSegmentSize(int segmentSize);
 
-    bool isStarted() const;
+    int maxRedirectsAllowed() const;
+    void setMaxRedirectsAllowed(int maxRedirectsAllowed);
+
     bool isRunning() const;
     bool isResolved() const;
-    bool isFinished() const;
-    bool isSimultaneousDownloadAvailable() const;
 
-    qreal progress(int chunk = -1) const;
-    qint64 size(int chunk = -1) const;
-    qint64 bytesAvailable(int chunk = -1) const;
+    qreal progress(int segment = -1) const;
+    qint64 size(int segment = -1) const;
+    qint64 bytesAvailable(int segment = -1) const;
 
-    qint64 skip(int chunk, qint64 maxSize);
+    qint64 skip(int segment, qint64 maxSize);
 
-    qint64 read(int chunk, char* data, qint64 maxSize);
-    QByteArray read(int chunk, qint64 maxSize);
-    QByteArray readAll(int chunk);
+    qint64 read(int segment, char* data, qint64 maxSize);
+    QByteArray read(int segment, qint64 maxSize);
+    QByteArray readAll(int segment);
 
-    qint64 readLine(int chunk, char* data, qint64 maxSize);
-    QByteArray readLine(int chunk, qint64 maxSize = 0);
+    qint64 readLine(int segment, char* data, qint64 maxSize);
+    QByteArray readLine(int segment, qint64 maxSize = 0);
 
-    bool atEnd(int chunk) const;
+    bool atEnd(int segment) const;
 
-    QString errorString(int chunk) const;
+    QString errorString(int segment) const;
 
 public slots:
-    void start();
+    bool start();
     void stop();
+    void close();
     void abort();
 
+protected:
+    FastDownloader(FastDownloaderPrivate& dd, QObject* parent);
+
 signals:
-    void sslErrors(const QList<QSslError>& errors);
-    void error(QNetworkReply::NetworkError code);
-    void redirected(const QUrl &url);
-    void progressChanged(int chunk, qint64 bytesReceived, qint64 bytesTotal);
-    void readyRead(int chunk);
-    void finished(int chunk);
-    void resolved();
     void done();
+    void resolved();
+    void finished(int segment);
+    void readyRead(int segment);
+    void progressChanged(int segment, qint64 bytesReceived, qint64 bytesTotal);
+    void redirected(const QUrl &url);
+    void error(QNetworkReply::NetworkError code);
+    void sslErrors(const QList<QSslError>& errors);
 
 private:
     QUrl m_url;
-    int m_numberOfSimultaneousConnections;
+    int m_segmentSize;
+    int m_maxRedirectsAllowed;
 };
 
 #endif // FASTDOWNLOADER_H

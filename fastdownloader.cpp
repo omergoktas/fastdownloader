@@ -1,23 +1,78 @@
 #include <fastdownloader_p.h>
 
-FastDownloaderPrivate::FastDownloaderPrivate()
+FastDownloaderPrivate::FastDownloaderPrivate() : QObjectPrivate()
+    , manager(new QNetworkAccessManager)
+    , resolved(false)
 {
 
 }
 
-FastDownloaderPrivate::~FastDownloaderPrivate()
+bool FastDownloaderPrivate::resolveUrl()
 {
+    Q_Q(FastDownloader);
 
+    resolvedUrl = q->url();
+
+    QNetworkReply* reply = manager->get(makeRequest());
+
+    QObject::connect(reply, &QNetworkReply::downloadProgress,
+                             [=] (qint64 bytesReceived, qint64 bytesTotal) {
+        qDebug() << bytesReceived << bytesTotal << "\t\t\t"
+                 << QString("%%1").arg(QString::number(100 * ((qreal)bytesReceived / bytesTotal)));
+    });
+
+    QObject::connect(reply, QOverload<QNetworkReply::NetworkError>::of(&QNetworkReply::error),
+                     [=] (QNetworkReply::NetworkError e) {
+        qDebug() << e;
+    });
+    QObject::connect(reply, &QNetworkReply::sslErrors,
+                     [=](const QList<QSslError>& e) {
+        qDebug() << e;
+        reply->ignoreSslErrors();
+    });
+
+    QObject::connect(reply, &QNetworkReply::finished, [=] {
+        qDebug() << "bitti lo!" << reply->readAll().size();
+    });
+    QObject::connect(reply, &QNetworkReply::redirected, [=] (const QUrl& url) {
+        //qDebug() << "redirected: " << url;
+    });
+    QObject::connect(reply, &QIODevice::readyRead, [=] {
+        //qDebug() << "gelen var";
+        static bool first = false;
+        if (first)
+            return;
+        first = true;
+
+        qDebug() << reply->rawHeaderPairs();
+//        qDebug() << reply->readAll().size();
+    });
 }
 
-FastDownloader::FastDownloader(const QUrl& url, int numberOfSimultaneousConnections, QObject* parent)
-    : QObject(parent)
+QNetworkRequest FastDownloaderPrivate::makeRequest() const
+{
+    Q_Q(const FastDownloader);
+    QNetworkRequest request;
+    request.setUrl(resolvedUrl);
+    request.setAttribute(QNetworkRequest::FollowRedirectsAttribute, true);
+    request.setRawHeader("User-Agent", "FastDownloader");
+    request.setMaximumRedirectsAllowed(q->maxRedirectsAllowed());
+    return request;
+}
+
+FastDownloader::FastDownloader(const QUrl& url, int segmentSize, QObject* parent)
+    : QObject(*(new FastDownloaderPrivate), parent)
     , m_url(url)
-    , m_numberOfSimultaneousConnections(numberOfSimultaneousConnections)
+    , m_segmentSize(segmentSize)
+    , m_maxRedirectsAllowed(5)
 {
 }
 
 FastDownloader::FastDownloader(QObject* parent) : FastDownloader(QUrl(), 5, parent)
+{
+}
+
+FastDownloader::~FastDownloader()
 {
 }
 
@@ -31,19 +86,14 @@ void FastDownloader::setUrl(const QUrl& url)
     m_url = url;
 }
 
-int FastDownloader::numberOfSimultaneousConnections() const
+int FastDownloader::segmentSize() const
 {
-    return m_numberOfSimultaneousConnections;
+    return m_segmentSize;
 }
 
-void FastDownloader::setNumberOfSimultaneousConnections(int numberOfSimultaneousConnections)
+void FastDownloader::setSegmentSize(int segmentSize)
 {
-    m_numberOfSimultaneousConnections = numberOfSimultaneousConnections;
-}
-
-bool FastDownloader::isStarted() const
-{
-
+    m_segmentSize = segmentSize;
 }
 
 bool FastDownloader::isRunning() const
@@ -56,74 +106,81 @@ bool FastDownloader::isResolved() const
 
 }
 
-bool FastDownloader::isFinished() const
+qreal FastDownloader::progress(int segment) const
 {
 
 }
 
-bool FastDownloader::isSimultaneousDownloadAvailable() const
+qint64 FastDownloader::size(int segment) const
 {
 
 }
 
-qreal FastDownloader::progress(int chunk) const
+qint64 FastDownloader::bytesAvailable(int segment) const
 {
 
 }
 
-qint64 FastDownloader::size(int chunk) const
+qint64 FastDownloader::skip(int segment, qint64 maxSize)
 {
 
 }
 
-qint64 FastDownloader::bytesAvailable(int chunk) const
+qint64 FastDownloader::read(int segment, char* data, qint64 maxSize)
 {
 
 }
 
-qint64 FastDownloader::skip(int chunk, qint64 maxSize)
+QByteArray FastDownloader::read(int segment, qint64 maxSize)
 {
 
 }
 
-qint64 FastDownloader::read(int chunk, char* data, qint64 maxSize)
+QByteArray FastDownloader::readAll(int segment)
 {
 
 }
 
-QByteArray FastDownloader::read(int chunk, qint64 maxSize)
+qint64 FastDownloader::readLine(int segment, char* data, qint64 maxSize)
 {
 
 }
 
-QByteArray FastDownloader::readAll(int chunk)
+QByteArray FastDownloader::readLine(int segment, qint64 maxSize)
 {
 
 }
 
-qint64 FastDownloader::readLine(int chunk, char* data, qint64 maxSize)
+bool FastDownloader::atEnd(int segment) const
 {
 
 }
 
-QByteArray FastDownloader::readLine(int chunk, qint64 maxSize)
+QString FastDownloader::errorString(int segment) const
 {
 
 }
 
-bool FastDownloader::atEnd(int chunk) const
+bool FastDownloader::start()
 {
+    Q_D(FastDownloader);
 
-}
+    if (isRunning()) {
+        qWarning("A download is already in progress");
+        return false;
+    }
 
-QString FastDownloader::errorString(int chunk) const
-{
+    if (m_segmentSize > MAX_SEGMENTS) {
+        qWarning("Segment size exceeds maximum number of segments allowed");
+        return false;
+    }
 
-}
+    if (!m_url.isValid()) {
+        qWarning("Url is not valid");
+        return false;
+    }
 
-void FastDownloader::start()
-{
-
+    return d->resolveUrl();
 }
 
 void FastDownloader::stop()
@@ -131,7 +188,27 @@ void FastDownloader::stop()
 
 }
 
+void FastDownloader::close()
+{
+
+}
+
 void FastDownloader::abort()
 {
 
+}
+
+FastDownloader::FastDownloader::FastDownloader(FastDownloaderPrivate& dd, QObject* parent)
+    : QObject(dd, parent)
+{
+}
+
+int FastDownloader::maxRedirectsAllowed() const
+{
+    return m_maxRedirectsAllowed;
+}
+
+void FastDownloader::setMaxRedirectsAllowed(int maxRedirectsAllowed)
+{
+    m_maxRedirectsAllowed = maxRedirectsAllowed;
 }
