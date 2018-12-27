@@ -1,10 +1,10 @@
 #include <fastdownloader_p.h>
 
 FastDownloaderPrivate::FastDownloaderPrivate() : QObjectPrivate()
-    , manager(new QNetworkAccessManager)
-    , running(false)
+  , manager(new QNetworkAccessManager)
+  , running(false)
+  , resolved(false)
 {
-
 }
 
 bool FastDownloaderPrivate::resolveUrl()
@@ -14,8 +14,12 @@ bool FastDownloaderPrivate::resolveUrl()
         return false;
 
     Segment initialSegment;
+    initialSegment.index = 0;
     initialSegment.reply = reply;
+    segments.append(initialSegment);
+
     connectSegment(initialSegment);
+
     return true;
 }
 
@@ -30,14 +34,13 @@ QNetworkRequest FastDownloaderPrivate::makeRequest(bool initial) const
     return request;
 }
 
-void FastDownloaderPrivate::connectSegment(const Segment& segment)
+void FastDownloaderPrivate::connectSegment(const Segment& segment) const
 {
-    Q_Q(FastDownloader);
-
+    Q_Q(const FastDownloader);
     QObject::connect(segment.reply, SIGNAL(downloadProgress(qint64,qint64)),
                      q, SLOT(_q_downloadProgress(qint64,qint64)));
     QObject::connect(segment.reply, SIGNAL(error(QNetworkReply::NetworkError)),
-                     q, SLOT(error(QNetworkReply::NetworkError)));
+                     q, SLOT(_q_error(QNetworkReply::NetworkError)));
     QObject::connect(segment.reply, SIGNAL(sslErrors(QList<QSslError>)),
                      q, SLOT(_q_sslErrors(QList<QSslError>)));
     QObject::connect(segment.reply, SIGNAL(finished()),
@@ -46,21 +49,29 @@ void FastDownloaderPrivate::connectSegment(const Segment& segment)
                      q, SLOT(_q_redirected(QUrl)));
     QObject::connect(segment.reply, SIGNAL(readyRead()),
                      q, SLOT(_q_readyRead()));
-
-    segments.append(segment);
 }
 
 void FastDownloaderPrivate::_q_redirected(const QUrl& url)
+{
+    Q_Q(FastDownloader);
+
+    if (resolved) {
+        qWarning("WARNING: Suspicious redirection is gonna be rejected, closing the connection...");
+        q->close();
+        return;
+    }
+
+    resolvedUrl = url;
+
+    emit q->redirected(url);
+}
+
+void FastDownloaderPrivate::_q_readyRead()
 {
 
 }
 
 void FastDownloaderPrivate::_q_finished()
-{
-
-}
-
-void FastDownloaderPrivate::_q_readyRead()
 {
 
 }
@@ -92,7 +103,8 @@ FastDownloader::FastDownloader(QObject* parent) : FastDownloader(QUrl(), 5, pare
 {
 }
 
-FastDownloader::~FastDownloader()
+FastDownloader::FastDownloader::FastDownloader(FastDownloaderPrivate& dd, QObject* parent)
+    : QObject(dd, parent)
 {
 }
 
@@ -109,6 +121,11 @@ QUrl FastDownloader::url() const
 
 void FastDownloader::setUrl(const QUrl& url)
 {
+    if (isRunning()) {
+        qWarning("FastDownloader::setUrl: Cannot set, a download is already in progress");
+        return;
+    }
+
     m_url = url;
 }
 
@@ -119,57 +136,227 @@ int FastDownloader::segmentSize() const
 
 void FastDownloader::setSegmentSize(int segmentSize)
 {
+    if (isRunning()) {
+        qWarning("FastDownloader::setSegmentSize: Cannot set, a download is already in progress");
+        return;
+    }
+
     m_segmentSize = segmentSize;
+}
+
+int FastDownloader::maxRedirectsAllowed() const
+{
+    return m_maxRedirectsAllowed;
+}
+
+void FastDownloader::setMaxRedirectsAllowed(int maxRedirectsAllowed)
+{
+    if (isRunning()) {
+        qWarning("FastDownloader::setMaxRedirectsAllowed: "
+                 "Cannot set, a download is already in progress");
+        return;
+    }
+
+    m_maxRedirectsAllowed = maxRedirectsAllowed;
 }
 
 bool FastDownloader::isRunning() const
 {
+    Q_D(const FastDownloader);
+    return d->running;
+}
 
+bool FastDownloader::isResolved() const
+{
+    Q_D(const FastDownloader);
+    return d->resolved;
 }
 
 qint64 FastDownloader::bytesAvailable(int segment) const
 {
+    Q_D(const FastDownloader);
 
+    if (!isRunning()) {
+        qWarning("FastDownloader::bytesAvailable: No downloads in progress");
+        return -1;
+    }
+
+    if (segment < 0 || segment >= d->segments.size()) {
+        qWarning("FastDownloader::bytesAvailable: Invalid segment index");
+        return -1;
+    }
+
+    return d->getReply(segment)->bytesAvailable();
 }
 
-qint64 FastDownloader::skip(int segment, qint64 maxSize)
+qint64 FastDownloader::skip(int segment, qint64 maxSize) const
 {
+    Q_D(const FastDownloader);
 
+    if (!isRunning()) {
+        qWarning("FastDownloader::skip: No downloads in progress");
+        return -1;
+    }
+
+    if (segment < 0 || segment >= d->segments.size()) {
+        qWarning("FastDownloader::skip: Invalid segment index");
+        return -1;
+    }
+
+    return d->getReply(segment)->skip(maxSize);
 }
 
-qint64 FastDownloader::read(int segment, char* data, qint64 maxSize)
+qint64 FastDownloader::read(int segment, char* data, qint64 maxSize) const
 {
+    Q_D(const FastDownloader);
 
+    if (!isRunning()) {
+        qWarning("FastDownloader::read: No downloads in progress");
+        return -1;
+    }
+
+    if (segment < 0 || segment >= d->segments.size()) {
+        qWarning("FastDownloader::read: Invalid segment index");
+        return -1;
+    }
+
+    return d->getReply(segment)->read(data, maxSize);
 }
 
-QByteArray FastDownloader::read(int segment, qint64 maxSize)
+QByteArray FastDownloader::read(int segment, qint64 maxSize) const
 {
+    Q_D(const FastDownloader);
 
+    if (!isRunning()) {
+        qWarning("FastDownloader::read: No downloads in progress");
+        return {};
+    }
+
+    if (segment < 0 || segment >= d->segments.size()) {
+        qWarning("FastDownloader::read: Invalid segment index");
+        return {};
+    }
+
+    return d->getReply(segment)->read(maxSize);
 }
 
-QByteArray FastDownloader::readAll(int segment)
+QByteArray FastDownloader::readAll(int segment) const
 {
+    Q_D(const FastDownloader);
 
+    if (!isRunning()) {
+        qWarning("FastDownloader::readAll: No downloads in progress");
+        return {};
+    }
+
+    if (segment < 0 || segment >= d->segments.size()) {
+        qWarning("FastDownloader::readAll: Invalid segment index");
+        return {};
+    }
+
+    return d->getReply(segment)->readAll();
 }
 
-qint64 FastDownloader::readLine(int segment, char* data, qint64 maxSize)
+qint64 FastDownloader::readLine(int segment, char* data, qint64 maxSize) const
 {
+    Q_D(const FastDownloader);
 
+    if (!isRunning()) {
+        qWarning("FastDownloader::readLine: No downloads in progress");
+        return -1;
+    }
+
+    if (segment < 0 || segment >= d->segments.size()) {
+        qWarning("FastDownloader::readLine: Invalid segment index");
+        return -1;
+    }
+
+    return d->getReply(segment)->readLine(data, maxSize);
 }
 
-QByteArray FastDownloader::readLine(int segment, qint64 maxSize)
+QByteArray FastDownloader::readLine(int segment, qint64 maxSize) const
 {
+    Q_D(const FastDownloader);
 
+    if (!isRunning()) {
+        qWarning("FastDownloader::readLine: No downloads in progress");
+        return {};
+    }
+
+    if (segment < 0 || segment >= d->segments.size()) {
+        qWarning("FastDownloader::readLine: Invalid segment index");
+        return {};
+    }
+
+    return d->getReply(segment)->readLine(maxSize);
 }
 
 bool FastDownloader::atEnd(int segment) const
 {
+    Q_D(const FastDownloader);
 
+    if (!isRunning()) {
+        qWarning("FastDownloader::atEnd: No downloads in progress");
+        return true;
+    }
+
+    if (segment < 0 || segment >= d->segments.size()) {
+        qWarning("FastDownloader::atEnd: Invalid segment index");
+        return true;
+    }
+
+    return d->getReply(segment)->atEnd();
 }
 
 QString FastDownloader::errorString(int segment) const
 {
+    Q_D(const FastDownloader);
 
+    if (!isRunning()) {
+        qWarning("FastDownloader::errorString: No downloads in progress");
+        return {};
+    }
+
+    if (segment < 0 || segment >= d->segments.size()) {
+        qWarning("FastDownloader::errorString: Invalid segment index");
+        return {};
+    }
+
+    return d->getReply(segment)->errorString();
+}
+
+void FastDownloader::ignoreSslErrors(int segment)
+{
+    Q_D(const FastDownloader);
+
+    if (!isRunning()) {
+        qWarning("FastDownloader::ignoreSslErrors: No downloads in progress");
+        return;
+    }
+
+    if (segment < 0 || segment >= d->segments.size()) {
+        qWarning("FastDownloader::ignoreSslErrors: Invalid segment index");
+        return;
+    }
+
+    return d->getReply(segment)->ignoreSslErrors();
+}
+
+void FastDownloader::ignoreSslErrors(int segment, const QList<QSslError>& errors)
+{
+    Q_D(const FastDownloader);
+
+    if (!isRunning()) {
+        qWarning("FastDownloader::ignoreSslErrors: No downloads in progress");
+        return;
+    }
+
+    if (segment < 0 || segment >= d->segments.size()) {
+        qWarning("FastDownloader::ignoreSslErrors: Invalid segment index");
+        return;
+    }
+
+    return d->getReply(segment)->ignoreSslErrors(errors);
 }
 
 bool FastDownloader::start()
@@ -177,17 +364,18 @@ bool FastDownloader::start()
     Q_D(FastDownloader);
 
     if (isRunning()) {
-        qWarning("A download is already in progress");
+        qWarning("FastDownloader::start: A download is already in progress");
         return false;
     }
 
-    if (m_segmentSize > MAX_SEGMENTS) {
-        qWarning("Segment size exceeds maximum number of segments allowed");
+    if (m_segmentSize < 1 || m_segmentSize > MAX_SEGMENTS) {
+        qWarning("FastDownloader::start: Segment size is incorrect, "
+                 "It may exceeds maximum number of segments allowed");
         return false;
     }
 
     if (!m_url.isValid()) {
-        qWarning("Url is not valid");
+        qWarning("FastDownloader::start: Url is not valid");
         return false;
     }
 
@@ -210,21 +398,6 @@ void FastDownloader::close()
 void FastDownloader::abort()
 {
 
-}
-
-FastDownloader::FastDownloader::FastDownloader(FastDownloaderPrivate& dd, QObject* parent)
-    : QObject(dd, parent)
-{
-}
-
-int FastDownloader::maxRedirectsAllowed() const
-{
-    return m_maxRedirectsAllowed;
-}
-
-void FastDownloader::setMaxRedirectsAllowed(int maxRedirectsAllowed)
-{
-    m_maxRedirectsAllowed = maxRedirectsAllowed;
 }
 
 #include "moc_fastdownloader.cpp"

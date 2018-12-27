@@ -15,12 +15,14 @@ class FASTDOWNLOADER_EXPORT FastDownloader : public QObject
     Q_DISABLE_COPY(FastDownloader)
     Q_DECLARE_PRIVATE(FastDownloader)
 
+    // Note: QNetworkAccessManager queues the requests it receives. The number of requests
+    // executed in parallel is dependent on the protocol. Currently, for the HTTP protocol
+    // on desktop platforms, 6 requests are executed in parallel for one host/port combination.
+    enum { MAX_SEGMENTS = 6 };
+
 public:
     explicit FastDownloader(const QUrl& url, int segmentSize = 5, QObject* parent = nullptr);
     explicit FastDownloader(QObject* parent = nullptr);
-    ~FastDownloader() override;
-
-    enum { MAX_SEGMENTS = 6 };
 
     QUrl resolvedUrl() const;
 
@@ -34,21 +36,25 @@ public:
     void setMaxRedirectsAllowed(int maxRedirectsAllowed);
 
     bool isRunning() const;
-
-    qint64 bytesAvailable(int segment = -1) const;
-
-    qint64 skip(int segment, qint64 maxSize);
-
-    qint64 read(int segment, char* data, qint64 maxSize);
-    QByteArray read(int segment, qint64 maxSize);
-    QByteArray readAll(int segment);
-
-    qint64 readLine(int segment, char* data, qint64 maxSize);
-    QByteArray readLine(int segment, qint64 maxSize = 0);
+    bool isResolved() const;
 
     bool atEnd(int segment) const;
 
+    qint64 bytesAvailable(int segment = -1) const;
+
+    qint64 skip(int segment, qint64 maxSize) const;
+
+    qint64 read(int segment, char* data, qint64 maxSize) const;
+    QByteArray read(int segment, qint64 maxSize) const;
+    QByteArray readAll(int segment) const;
+
+    qint64 readLine(int segment, char* data, qint64 maxSize) const;
+    QByteArray readLine(int segment, qint64 maxSize = 0) const;
+
     QString errorString(int segment) const;
+
+    void ignoreSslErrors(int segment);
+    void ignoreSslErrors(int segment, const QList<QSslError>& errors);
 
 public slots:
     bool start();
@@ -62,6 +68,7 @@ protected:
 signals:
     void done();
     void redirected(const QUrl& url);
+    void resolved(const QUrl& resolvedUrl);
     void finished(int segment);
     void readyRead(int segment);
     void error(int segment, QNetworkReply::NetworkError code);

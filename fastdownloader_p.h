@@ -6,7 +6,8 @@
 
 struct Segment
 {
-    QNetworkReply* reply;
+    int index = -1;
+    QNetworkReply* reply = nullptr;
 };
 
 class FastDownloaderPrivate : public QObjectPrivate
@@ -17,10 +18,14 @@ public:
 
     bool resolveUrl();
     QNetworkRequest makeRequest(bool initial) const;
-    void connectSegment(const Segment& segment);
+    void connectSegment(const Segment& segment) const;
+
+    inline QNetworkReply* getReply(int segmentIndex) const
+    { return segments.at(segmentIndex).reply; }
 
     QScopedPointer<QNetworkAccessManager> manager;
     bool running;
+    bool resolved;
     QUrl resolvedUrl;
     QList<Segment> segments;
 
