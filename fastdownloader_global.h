@@ -3,7 +3,7 @@
 
 #include <QtCore/qglobal.h>
 
-#if defined(FASTDOWNLOADER_LIBRARY)
+#if defined(FASTDOWNLOADER_LIBRARY) // takes precedence when combined with others
 #  define FASTDOWNLOADER_EXPORT Q_DECL_EXPORT
 #elif defined(FASTDOWNLOADER_INCLUDE_STATIC)
 #  define FASTDOWNLOADER_EXPORT
