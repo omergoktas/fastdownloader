@@ -18,7 +18,7 @@ class FASTDOWNLOADER_EXPORT FastDownloader : public QObject
     // Note: QNetworkAccessManager queues the requests it receives. The number of requests
     // executed in parallel is dependent on the protocol. Currently, for the HTTP protocol
     // on desktop platforms, 6 requests are executed in parallel for one host/port combination.
-    enum { MAX_SEGMENTS = 6 };
+    enum { MAX_SEGMENTS = 6, MIN_CONTENT_SIZE =  102400 };
 
 public:
     explicit FastDownloader(const QUrl& url, int segmentSize = 5, QObject* parent = nullptr);
@@ -37,6 +37,7 @@ public:
 
     bool isRunning() const;
     bool isResolved() const;
+    bool isParallelDownloadPossible() const;
 
     bool atEnd(int segment) const;
 

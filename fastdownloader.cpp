@@ -4,6 +4,7 @@ FastDownloaderPrivate::FastDownloaderPrivate() : QObjectPrivate()
   , manager(new QNetworkAccessManager)
   , running(false)
   , resolved(false)
+  , parallelDownloadPossible(false)
 {
 }
 
@@ -13,14 +14,23 @@ bool FastDownloaderPrivate::resolveUrl()
     if (!reply)
         return false;
 
-    Segment initialSegment;
-    initialSegment.index = 0;
-    initialSegment.reply = reply;
+    auto initialSegment = new Segment;
+    initialSegment->index = 0;
+    initialSegment->reply = reply;
     segments.append(initialSegment);
 
     connectSegment(initialSegment);
 
     return true;
+}
+
+inline bool FastDownloaderPrivate::isParallelDownloadPossible(const QNetworkReply* reply) const
+{
+    return reply
+            && reply->hasRawHeader("Accept-Ranges")
+            && reply->hasRawHeader("Content-Length")
+            && reply->rawHeader("Accept-Ranges") == "bytes"
+            && reply->rawHeader("Content-Length").toLongLong() > FastDownloader::MIN_CONTENT_SIZE;
 }
 
 QNetworkRequest FastDownloaderPrivate::makeRequest(bool initial) const
@@ -34,20 +44,20 @@ QNetworkRequest FastDownloaderPrivate::makeRequest(bool initial) const
     return request;
 }
 
-void FastDownloaderPrivate::connectSegment(const Segment& segment) const
+void FastDownloaderPrivate::connectSegment(const Segment* segment) const
 {
     Q_Q(const FastDownloader);
-    QObject::connect(segment.reply, SIGNAL(downloadProgress(qint64,qint64)),
+    QObject::connect(segment->reply, SIGNAL(downloadProgress(qint64,qint64)),
                      q, SLOT(_q_downloadProgress(qint64,qint64)));
-    QObject::connect(segment.reply, SIGNAL(error(QNetworkReply::NetworkError)),
+    QObject::connect(segment->reply, SIGNAL(error(QNetworkReply::NetworkError)),
                      q, SLOT(_q_error(QNetworkReply::NetworkError)));
-    QObject::connect(segment.reply, SIGNAL(sslErrors(QList<QSslError>)),
+    QObject::connect(segment->reply, SIGNAL(sslErrors(QList<QSslError>)),
                      q, SLOT(_q_sslErrors(QList<QSslError>)));
-    QObject::connect(segment.reply, SIGNAL(finished()),
+    QObject::connect(segment->reply, SIGNAL(finished()),
                      q, SLOT(_q_finished()));
-    QObject::connect(segment.reply, SIGNAL(redirected(QUrl)),
+    QObject::connect(segment->reply, SIGNAL(redirected(QUrl)),
                      q, SLOT(_q_redirected(QUrl)));
-    QObject::connect(segment.reply, SIGNAL(readyRead()),
+    QObject::connect(segment->reply, SIGNAL(readyRead()),
                      q, SLOT(_q_readyRead()));
 }
 
@@ -56,7 +66,7 @@ void FastDownloaderPrivate::_q_redirected(const QUrl& url)
     Q_Q(FastDownloader);
 
     if (resolved) {
-        qWarning("WARNING: Suspicious redirection is gonna be rejected, closing the connection...");
+        qWarning("WARNING: Suspicious redirection is going to be rejected");
         q->close();
         return;
     }
@@ -68,7 +78,27 @@ void FastDownloaderPrivate::_q_redirected(const QUrl& url)
 
 void FastDownloaderPrivate::_q_readyRead()
 {
+    Q_Q(FastDownloader);
 
+    auto reply = qobject_cast<QNetworkReply*>(q->sender());
+    Q_ASSERT(reply);
+
+    if (!resolved) {
+        Q_ASSERT(reply == segments.first()->reply);
+        resolved = true;
+        parallelDownloadPossible = isParallelDownloadPossible(reply);
+
+        if (!parallelDownloadPossible)
+            qWarning("WARNING: Parallel download is not possible");
+
+        Segment* segment = getSegment(reply);
+        Q_ASSERT(segment);
+
+        segment->bytesReceived = segment->reply->bytesAvailable();
+
+        emit q->resolved(resolvedUrl);
+        emit q->readyRead(segment->index);
+    }
 }
 
 void FastDownloaderPrivate::_q_finished()
@@ -170,6 +200,12 @@ bool FastDownloader::isResolved() const
 {
     Q_D(const FastDownloader);
     return d->resolved;
+}
+
+bool FastDownloader::isParallelDownloadPossible() const
+{
+    Q_D(const FastDownloader);
+    return d->parallelDownloadPossible;
 }
 
 qint64 FastDownloader::bytesAvailable(int segment) const

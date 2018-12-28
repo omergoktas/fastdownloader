@@ -7,6 +7,7 @@
 struct Segment
 {
     int index = -1;
+    qint64 bytesReceived = 0;
     QNetworkReply* reply = nullptr;
 };
 
@@ -17,17 +18,27 @@ public:
     FastDownloaderPrivate();
 
     bool resolveUrl();
+    bool isParallelDownloadPossible(const QNetworkReply* reply) const;
     QNetworkRequest makeRequest(bool initial) const;
-    void connectSegment(const Segment& segment) const;
+    void connectSegment(const Segment* segment) const;
 
     inline QNetworkReply* getReply(int segmentIndex) const
-    { return segments.at(segmentIndex).reply; }
+    { return segments.at(segmentIndex)->reply; }
+    inline Segment* getSegment(const QNetworkReply* reply) const
+    {
+        for (Segment* seg : segments) {
+            if (seg->reply == reply)
+                return seg;
+        }
+        return nullptr;
+    }
 
     QScopedPointer<QNetworkAccessManager> manager;
     bool running;
     bool resolved;
+    bool parallelDownloadPossible;
     QUrl resolvedUrl;
-    QList<Segment> segments;
+    QList<Segment*> segments;
 
     void _q_redirected(const QUrl& url);
     void _q_finished();
