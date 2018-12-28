@@ -40,6 +40,7 @@ public:
     void _q_error(QNetworkReply::NetworkError code);
     void _q_sslErrors(const QList<QSslError>& errors);
     void _q_downloadProgress(qint64 bytesReceived, qint64 bytesTotal);
+    void _q_launchOtherSegments();
 };
 
 #endif // FASTDOWNLOADER_P_H

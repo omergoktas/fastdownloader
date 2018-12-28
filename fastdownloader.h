@@ -20,6 +20,14 @@ class FASTDOWNLOADER_EXPORT FastDownloader : public QObject
         // executed in parallel is dependent on the protocol. Currently, for the HTTP protocol
         // on desktop platforms, 6 requests are executed in parallel for one host/port combination.
         MAX_SEGMENTS = 6,
+
+        // Give the initial segment a space for fetching some data. That helps when
+        // downloading videos. If we let the initial segment to have some space to
+        // download video data, the video can show up much faster on screen.
+        INITIAL_LATENCY = 1000,
+
+        // The minimum content size allowed for parallel download. Lesser sized data will
+        // not be downloaded simultaneously.
         MIN_CONTENT_SIZE = 102400
     };
 
@@ -90,6 +98,7 @@ private:
     Q_PRIVATE_SLOT(d_func(), void _q_error(QNetworkReply::NetworkError))
     Q_PRIVATE_SLOT(d_func(), void _q_sslErrors(const QList<QSslError>&))
     Q_PRIVATE_SLOT(d_func(), void _q_downloadProgress(qint64, qint64))
+    Q_PRIVATE_SLOT(d_func(), void _q_launchOtherSegments())
 
 private:
     QUrl m_url;

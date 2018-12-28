@@ -1,4 +1,5 @@
 #include <fastdownloader_p.h>
+#include <QTimer>
 
 FastDownloaderPrivate::FastDownloaderPrivate() : QObjectPrivate()
   , manager(new QNetworkAccessManager)
@@ -67,7 +68,7 @@ void FastDownloaderPrivate::connectSegment(const Segment* segment) const
 
 Segment* FastDownloaderPrivate::getSegment(const QObject* sender) const
 {
-    auto reply = qobject_cast<QNetworkReply*>(sender);
+    const auto reply = qobject_cast<const QNetworkReply*>(sender);
     if (!reply)
         return nullptr;
 
@@ -84,9 +85,9 @@ void FastDownloaderPrivate::_q_redirected(const QUrl& url)
     Q_Q(FastDownloader);
 
     Segment* segment = getSegment(q->sender());
-    Q_ASSERT(segment);
+    Q_ASSERT(segment && segment == segments.first());
 
-    if (segment->bytesReceived > 0) {
+    if (segment->bytesReceived >= 0) {
         qWarning("WARNING: Suspicious redirection is going to be rejected");
         q->close();
         return;
@@ -104,18 +105,17 @@ void FastDownloaderPrivate::_q_readyRead()
     Segment* segment = getSegment(q->sender());
     Q_ASSERT(segment);
 
-    if (!resolved) {
-        Q_ASSERT(segment == segments.first());
-        resolved = true;
-        parallelDownloadPossible = isParallelDownloadPossible(reply);
-
-        Segment* segment = getSegment(reply);
-        Q_ASSERT(segment);
-
+    if (segments.first() == segment && segment->bytesReceived < 0) {
+        parallelDownloadPossible = isParallelDownloadPossible(segment->reply);
         segment->bytesReceived = segment->reply->bytesAvailable();
-
-        emit q->readyRead(segment->index);
+        segment->data = segment->reply->readAll();
+        QTimer::singleShot(FastDownloader::INITIAL_LATENCY, q, SLOT(_q_launchOtherSegments()));
+    } else {
+        segment->bytesReceived += segment->reply->bytesAvailable();
+        segment->data += segment->reply->readAll();
     }
+
+    emit q->readyRead(segment->index);
 }
 
 void FastDownloaderPrivate::_q_finished()
@@ -134,6 +134,11 @@ void FastDownloaderPrivate::_q_sslErrors(const QList<QSslError>& errors)
 }
 
 void FastDownloaderPrivate::_q_downloadProgress(qint64 bytesReceived, qint64 bytesTotal)
+{
+
+}
+
+void FastDownloaderPrivate::_q_launchOtherSegments()
 {
 
 }
@@ -212,12 +217,6 @@ bool FastDownloader::isRunning() const
 {
     Q_D(const FastDownloader);
     return d->running;
-}
-
-bool FastDownloader::isResolved() const
-{
-    Q_D(const FastDownloader);
-    return d->resolved;
 }
 
 bool FastDownloader::isParallelDownloadPossible() const
