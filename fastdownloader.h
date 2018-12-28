@@ -15,10 +15,13 @@ class FASTDOWNLOADER_EXPORT FastDownloader : public QObject
     Q_DISABLE_COPY(FastDownloader)
     Q_DECLARE_PRIVATE(FastDownloader)
 
-    // Note: QNetworkAccessManager queues the requests it receives. The number of requests
-    // executed in parallel is dependent on the protocol. Currently, for the HTTP protocol
-    // on desktop platforms, 6 requests are executed in parallel for one host/port combination.
-    enum { MAX_SEGMENTS = 6, MIN_CONTENT_SIZE =  102400 };
+    enum {
+        // Note: QNetworkAccessManager queues the requests it receives. The number of requests
+        // executed in parallel is dependent on the protocol. Currently, for the HTTP protocol
+        // on desktop platforms, 6 requests are executed in parallel for one host/port combination.
+        MAX_SEGMENTS = 6,
+        MIN_CONTENT_SIZE = 102400
+    };
 
 public:
     explicit FastDownloader(const QUrl& url, int segmentSize = 5, QObject* parent = nullptr);
@@ -36,8 +39,13 @@ public:
     void setMaxRedirectsAllowed(int maxRedirectsAllowed);
 
     bool isRunning() const;
-    bool isResolved() const;
     bool isParallelDownloadPossible() const;
+
+    qint64 readBufferSize() const;
+    void setReadBufferSize(qint64 size);
+
+    QSslConfiguration sslConfiguration() const;
+    void setSslConfiguration(const QSslConfiguration& config);
 
     bool atEnd(int segment) const;
 
@@ -69,7 +77,6 @@ protected:
 signals:
     void done();
     void redirected(const QUrl& url);
-    void resolved(const QUrl& resolvedUrl);
     void finished(int segment);
     void readyRead(int segment);
     void error(int segment, QNetworkReply::NetworkError code);
@@ -88,6 +95,8 @@ private:
     QUrl m_url;
     int m_segmentSize;
     int m_maxRedirectsAllowed;
+    qint64 m_readBufferSize;
+    QSslConfiguration m_sslConfiguration;
 };
 
 #endif // FASTDOWNLOADER_H

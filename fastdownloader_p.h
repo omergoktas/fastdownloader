@@ -7,7 +7,9 @@
 struct Segment
 {
     int index = -1;
-    qint64 bytesReceived = 0;
+    QByteArray data;
+    qint64 segmentStop = -1;
+    qint64 bytesReceived = -1;
     QNetworkReply* reply = nullptr;
 };
 
@@ -24,18 +26,10 @@ public:
 
     inline QNetworkReply* getReply(int segmentIndex) const
     { return segments.at(segmentIndex)->reply; }
-    inline Segment* getSegment(const QNetworkReply* reply) const
-    {
-        for (Segment* seg : segments) {
-            if (seg->reply == reply)
-                return seg;
-        }
-        return nullptr;
-    }
+    Segment* getSegment(const QObject* sender) const;
 
     QScopedPointer<QNetworkAccessManager> manager;
     bool running;
-    bool resolved;
     bool parallelDownloadPossible;
     QUrl resolvedUrl;
     QList<Segment*> segments;
