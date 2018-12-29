@@ -20,8 +20,8 @@ class FASTDOWNLOADER_EXPORT FastDownloader : public QObject
         // on desktop platforms, 6 requests are executed in parallel for one host/port combination.
         MAX_PARALLEL_CONNECTIONS = 6,
 
-        // The minimum content size allowed for parallel download. Lesser sized data will
-        // not be downloaded simultaneously.
+        // The minimum possible content size allowed for parallel downloads. Lesser sized data
+        // will not be having parallel download feature enabled (100 Kb).
         MIN_CONTENT_SIZE = 102400
     };
 
@@ -67,7 +67,7 @@ public:
     void ignoreSslErrors(quint32 id, const QList<QSslError>& errors) const;
 
 public slots:
-    void start();
+    bool start();
     void stop();
     void close();
     void abort();

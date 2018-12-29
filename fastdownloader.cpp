@@ -63,6 +63,11 @@ void FastDownloaderPrivate::_q_finished()
 
     if (downloadCompleted())
         q->finished();
+
+    if (chunk->reply->error() != QNetworkReply::NoError) {
+        q->close(); // WARNING: That may also trigger an error, and maybe a "finished" too,
+        // and there might a race condition occur
+    }
 }
 
 void FastDownloaderPrivate::deleteChunk(Chunk* chunk)
@@ -193,8 +198,10 @@ void FastDownloaderPrivate::_q_redirected(const QUrl& url)
     Q_Q(FastDownloader);
 
     if (resolved) {
-        qWarning("WARNING: Suspicious redirection is going to be rejected");
-        q->close(); // TODO: Are we gonna keep the data exists?
+        qWarning("WARNING: Suspicious redirection rejected");
+        _q_error(QNetworkReply::InsecureRedirectError);
+        q->abort(); // WARNING: That may also trigger an error, 2 errors total
+        // FIXME: Unproper error expression, no errorString either
         return;
     }
 
@@ -602,29 +609,31 @@ void FastDownloader::ignoreSslErrors(quint32 id, const QList<QSslError>& errors)
     return d->chunkFor(id)->reply->ignoreSslErrors(errors);
 }
 
-void FastDownloader::start()
+bool FastDownloader::start()
 {
     Q_D(FastDownloader);
 
     if (d->running) {
         qWarning("FastDownloader::start: A download is already in progress");
-        return;
+        return false;
     }
 
     if (m_numberOfParallelConnections < 1
             || m_numberOfParallelConnections > MAX_PARALLEL_CONNECTIONS) {
         qWarning("FastDownloader::start: Number of parallel connections is incorrect, "
                  "It may exceeds maximum number of parallel connections allowed");
-        return;
+        return false;
     }
 
     if (!m_url.isValid()) {
         qWarning("FastDownloader::start: Url is invalid");
-        return;
+        return false;
     }
 
     d->running = true;
     d->createChunk(m_url);
+
+    return true;
 }
 
 void FastDownloader::stop()
