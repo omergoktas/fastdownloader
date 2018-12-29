@@ -3,7 +3,6 @@
 
 #include <fastdownloader_global.h>
 
-#include <QObject>
 #include <QUrl>
 #include <QSslError>
 #include <QNetworkReply>
@@ -42,10 +41,11 @@ public:
     void setMaxRedirectsAllowed(int maxRedirectsAllowed);
 
     bool isRunning() const;
+    bool isResolved() const;
     bool isParallelDownloadPossible() const;
 
     qint64 chunkSizeLimit() const;
-    void setChunkSizeLimit(const qint64& chunkSizeLimit);
+    void setChunkSizeLimit(qint64 chunkSizeLimit);
 
     qint64 readBufferSize() const;
     void setReadBufferSize(qint64 size);
@@ -53,17 +53,17 @@ public:
     QSslConfiguration sslConfiguration() const;
     void setSslConfiguration(const QSslConfiguration& config);
 
-    bool atEnd(int id) const;
-    qint64 bytesAvailable(int id) const;
-    qint64 skip(int id, qint64 maxSize) const;
-    qint64 read(int id, char* data, qint64 maxSize) const;
-    QByteArray read(int id, qint64 maxSize) const;
-    QByteArray readAll(int id) const;
-    qint64 readLine(int id, char* data, qint64 maxSize) const;
-    QByteArray readLine(int id, qint64 maxSize = 0) const;
-    QString errorString(int id) const;
-    void ignoreSslErrors(int id);
-    void ignoreSslErrors(int id, const QList<QSslError>& errors);
+    bool atEnd(quint32 id) const;
+    qint64 bytesAvailable(quint32 id) const;
+    qint64 skip(quint32 id, qint64 maxSize) const;
+    qint64 read(quint32 id, char* data, qint64 maxSize) const;
+    QByteArray read(quint32 id, qint64 maxSize) const;
+    QByteArray readAll(quint32 id) const;
+    qint64 readLine(quint32 id, char* data, qint64 maxSize) const;
+    QByteArray readLine(quint32 id, qint64 maxSize = 0) const;
+    QString errorString(quint32 id) const;
+    void ignoreSslErrors(quint32 id) const;
+    void ignoreSslErrors(quint32 id, const QList<QSslError>& errors) const;
 
 public slots:
     bool start();
@@ -79,6 +79,7 @@ signals:
     void finished(quint32 id);
     void readyRead(quint32 id);
     void redirected(const QUrl& url);
+    void resolved(const QUrl& resolvedUrl);
     void error(quint32 id, QNetworkReply::NetworkError code);
     void sslErrors(quint32 id, const QList<QSslError>& errors);
     void downloadProgress(qint64 bytesReceived, qint64 bytesTotal);
