@@ -1,2 +1,2 @@
 # fastdownloader (development in progress)
-Basic utility library based on Qt/C++ for fast (segmented) downloading. It let's you download files with more than one simultaneous connections.
+Basic utility library based on Qt/C++ for fast, parallel downloads. It let's you download a file with more than one simultaneous connection.
