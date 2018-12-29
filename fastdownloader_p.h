@@ -10,8 +10,6 @@ struct Chunk
     qint64 pos = -1;
     QByteArray data;
     QNetworkReply* reply = nullptr;
-    bool initial = false;
-    bool markedForDeletion = false; // TODO: Do we need this?
 };
 
 class FastDownloaderPrivate : public QObjectPrivate
@@ -20,16 +18,17 @@ class FastDownloaderPrivate : public QObjectPrivate
 public:
     FastDownloaderPrivate();
 
-    bool resolveUrl();
-    bool testParallelDownload(const Chunk* chunk) const;
     bool chunkExists(quint32 id) const;
+    void resolveUrl();
     void connectChunk(const Chunk* chunk) const;
-    void startDownload();
+    void startParallelDownloading();
     quint32 generateUniqueId() const;
-    qint64 contentLength(const Chunk* chunk) const;
     Chunk* chunkFor(quint32 id) const;
     Chunk* chunkFor(const QObject* sender) const;
-    QNetworkRequest makeRequest(bool initial) const;
+    QNetworkRequest prepareRequest(bool initial, const QUrl& url) const;
+
+    static qint64 contentLength(const Chunk* chunk);
+    static bool testParallelDownload(const Chunk* chunk);
 
     QScopedPointer<QNetworkAccessManager> manager;
     bool running;

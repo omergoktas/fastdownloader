@@ -66,7 +66,7 @@ public:
     void ignoreSslErrors(quint32 id, const QList<QSslError>& errors) const;
 
 public slots:
-    bool start();
+    void start();
     void stop();
     void close();
     void abort();
