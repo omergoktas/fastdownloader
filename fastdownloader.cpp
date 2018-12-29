@@ -56,6 +56,13 @@ bool FastDownloaderPrivate::testParallelDownload(const Chunk* chunk)
 
 void FastDownloaderPrivate::_q_finished()
 {
+    Q_Q(FastDownloader);
+
+    Chunk* chunk = chunkFor(q->sender());
+    q->finished(chunk->id);
+
+    if (downloadCompleted())
+        q->finished();
 }
 
 void FastDownloaderPrivate::deleteChunk(Chunk* chunk)
@@ -146,6 +153,16 @@ bool FastDownloaderPrivate::chunkExists(quint32 id) const
     return false;
 }
 
+bool FastDownloaderPrivate::downloadCompleted() const
+{
+    for (Chunk* chunk : chunks) {
+        if (chunk->reply->isRunning())
+            return false;
+    }
+
+    return true;
+}
+
 Chunk* FastDownloaderPrivate::chunkFor(quint32 id) const
 {
     for (Chunk* chunk : chunks) {
@@ -218,10 +235,18 @@ void FastDownloaderPrivate::_q_readyRead()
 
 void FastDownloaderPrivate::_q_error(QNetworkReply::NetworkError code)
 {
+    Q_Q(FastDownloader);
+
+    Chunk* chunk = chunkFor(q->sender());
+    q->error(chunk->id, code);
 }
 
 void FastDownloaderPrivate::_q_sslErrors(const QList<QSslError>& errors)
 {
+    Q_Q(FastDownloader);
+
+    Chunk* chunk = chunkFor(q->sender());
+    q->sslErrors(chunk->id, errors);
 }
 
 void FastDownloaderPrivate::_q_downloadProgress(qint64 bytesReceived, qint64 bytesTotal)
@@ -245,6 +270,12 @@ FastDownloader::FastDownloader(const QUrl& url, int numberOfParallelConnections,
 
 FastDownloader::FastDownloader(QObject* parent) : FastDownloader(QUrl(), 5, parent)
 {
+}
+
+qint64 FastDownloader::size() const
+{
+    Q_D(const FastDownloader);
+    return d->bytesTotal;
 }
 
 FastDownloader::FastDownloader::FastDownloader(FastDownloaderPrivate& dd, QObject* parent)

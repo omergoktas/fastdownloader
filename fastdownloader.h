@@ -29,6 +29,7 @@ public:
     explicit FastDownloader(const QUrl& url, int numberOfParallelConnections = 5, QObject* parent = nullptr);
     explicit FastDownloader(QObject* parent = nullptr);
 
+    qint64 size() const;
     QUrl resolvedUrl() const;
 
     QUrl url() const;

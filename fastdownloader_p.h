@@ -19,6 +19,7 @@ public:
     FastDownloaderPrivate();
 
     bool chunkExists(quint32 id) const;
+    bool downloadCompleted() const;
     void deleteChunk(Chunk* chunk);
     void createChunk(const QUrl& url, qint64 begin = -1, qint64 end = -1);
     void startParallelDownloading();
