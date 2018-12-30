@@ -1,4 +1,5 @@
 - Clear inline todos
 - Let the user to be able to fetch the desired amount of data from the desired point.
 - Let the user to be able to program the utility class to fetch complex chunk portions at once.
-- Let the user to be able to save a download state, hence he can later restore and continue to download.
+- Let the user to be able to save a downloading state, hence he can later restore and continue to download.
+- Let the user have more control over error states (i.e do not simply stop downloading completely)

@@ -45,8 +45,8 @@ public:
     bool isResolved() const;
     bool isParallelDownloadPossible() const;
 
-    qint64 chunkSizeLimit() const;
-    void setChunkSizeLimit(qint64 chunkSizeLimit);
+    qint64 connectionSizeLimit() const;
+    void setConnectionSizeLimit(qint64 connectionSizeLimit);
 
     qint64 readBufferSize() const;
     void setReadBufferSize(qint64 size);
@@ -98,7 +98,7 @@ private:
     QUrl m_url;
     int m_numberOfParallelConnections;
     int m_maxRedirectsAllowed;
-    qint64 m_chunkSizeLimit;
+    qint64 m_connectionSizeLimit;
     qint64 m_readBufferSize;
     QSslConfiguration m_sslConfiguration;
 };

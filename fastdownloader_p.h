@@ -4,40 +4,40 @@
 #include <fastdownloader.h>
 #include <private/qobject_p.h>
 
-struct Chunk
-{
-    quint32 id = 0;
-    qint64 pos = -1;
-    QByteArray data;
-    QNetworkReply* reply = nullptr;
-};
-
 class FastDownloaderPrivate : public QObjectPrivate
 {
     Q_DECLARE_PUBLIC(FastDownloader)
+
+    struct Connection
+    {
+        quint32 id = 0;
+        QNetworkReply* reply = nullptr;
+        qint64 bytesReceived = 0; // Used for statistical reasons
+    };
+
 public:
     FastDownloaderPrivate();
 
-    bool chunkExists(quint32 id) const;
+    bool connectionExists(quint32 id) const;
     bool downloadCompleted() const;
-    void deleteChunk(Chunk* chunk);
-    void createChunk(const QUrl& url, qint64 begin = -1, qint64 end = -1);
+    void deleteConnection(Connection* connection);
+    void createConnection(const QUrl& url, qint64 begin = -1, qint64 end = -1);
     void startParallelDownloading();
+    qint64 calculateTotalBytesReceived() const;
     quint32 generateUniqueId() const;
-    Chunk* chunkFor(quint32 id) const;
-    Chunk* chunkFor(const QObject* sender) const;
+    Connection* connectionFor(quint32 id) const;
+    Connection* connectionFor(const QObject* sender) const;
 
-    static qint64 contentLength(const Chunk* chunk);
-    static bool testParallelDownload(const Chunk* chunk);
+    static qint64 contentLength(const Connection* connection);
+    static bool testParallelDownload(const Connection* connection);
 
     QScopedPointer<QNetworkAccessManager> manager;
     bool running;
     bool resolved;
     bool parallelDownloadPossible;
     QUrl resolvedUrl;
-    qint64 bytesReceived;
     qint64 bytesTotal;
-    QList<Chunk*> chunks;
+    QList<Connection*> connections;
 
     void _q_finished();
     void _q_readyRead();
