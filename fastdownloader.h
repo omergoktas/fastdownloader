@@ -54,22 +54,24 @@ public:
     QSslConfiguration sslConfiguration() const;
     void setSslConfiguration(const QSslConfiguration& config);
 
-    bool atEnd(quint32 id) const;
-    qint64 bytesAvailable(quint32 id) const;
-    qint64 skip(quint32 id, qint64 maxSize) const;
-    qint64 read(quint32 id, char* data, qint64 maxSize) const;
-    QByteArray read(quint32 id, qint64 maxSize) const;
-    QByteArray readAll(quint32 id) const;
-    qint64 readLine(quint32 id, char* data, qint64 maxSize) const;
-    QByteArray readLine(quint32 id, qint64 maxSize = 0) const;
-    QString errorString(quint32 id) const;
-    void ignoreSslErrors(quint32 id) const;
-    void ignoreSslErrors(quint32 id, const QList<QSslError>& errors) const;
+    QNetworkAccessManager* networkAccessManager() const;
+
+    bool atEnd(int id) const;
+    qint64 bytesAvailable(int id) const;
+    qint64 peek(int id, char *data, qint64 maxSize);
+    QByteArray peek(int id, qint64 maxSize);
+    qint64 skip(int id, qint64 maxSize) const;
+    qint64 read(int id, char* data, qint64 maxSize) const;
+    QByteArray read(int id, qint64 maxSize) const;
+    QByteArray readAll(int id) const;
+    qint64 readLine(int id, char* data, qint64 maxSize) const;
+    QByteArray readLine(int id, qint64 maxSize = 0) const;
+    QString errorString(int id) const;
+    void ignoreSslErrors(int id) const;
+    void ignoreSslErrors(int id, const QList<QSslError>& errors) const;
 
 public slots:
     bool start();
-    void stop();
-    void close();
     void abort();
 
 protected:
@@ -77,14 +79,14 @@ protected:
 
 signals:
     void finished();
-    void finished(quint32 id);
-    void readyRead(quint32 id);
+    void finished(int id);
+    void readyRead(int id);
     void redirected(const QUrl& url);
     void resolved(const QUrl& resolvedUrl);
-    void error(quint32 id, QNetworkReply::NetworkError code);
-    void sslErrors(quint32 id, const QList<QSslError>& errors);
+    void error(int id, QNetworkReply::NetworkError code);
+    void sslErrors(int id, const QList<QSslError>& errors);
     void downloadProgress(qint64 bytesReceived, qint64 bytesTotal);
-    void downloadProgress(quint32 id, qint64 bytesReceived, qint64 bytesTotal);
+    void downloadProgress(int id, qint64 bytesReceived, qint64 bytesTotal);
 
 private:
     Q_PRIVATE_SLOT(d_func(), void _q_finished())

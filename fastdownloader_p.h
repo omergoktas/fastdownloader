@@ -10,23 +10,29 @@ class FastDownloaderPrivate : public QObjectPrivate
 
     struct Connection
     {
-        quint32 id = 0;
+        int id = 0;
+        qint64 pos = 0;
+        qint64 bytesTotal = 0;
+        qint64 bytesReceived = 0;
         QNetworkReply* reply = nullptr;
-        qint64 bytesReceived = 0; // Used for statistical reasons
     };
 
 public:
     FastDownloaderPrivate();
 
-    bool connectionExists(quint32 id) const;
+    int generateUniqueId() const;
+    bool connectionExists(int id) const;
     bool downloadCompleted() const;
+
+    Connection* connectionFor(int id) const;
+    Connection* connectionFor(const QObject* sender) const;
+
+    QList<Connection> fakeCopyForConnections() const;
+
+    void free();
+    void startParallelDownloading();
     void deleteConnection(Connection* connection);
     void createConnection(const QUrl& url, qint64 begin = -1, qint64 end = -1);
-    void startParallelDownloading();
-    qint64 calculateTotalBytesReceived() const;
-    quint32 generateUniqueId() const;
-    Connection* connectionFor(quint32 id) const;
-    Connection* connectionFor(const QObject* sender) const;
 
     static qint64 testContentLength(const Connection* connection);
     static bool testParallelDownload(const Connection* connection);
@@ -37,6 +43,7 @@ public:
     bool parallelDownloadPossible;
     QUrl resolvedUrl;
     qint64 contentLength;
+    qint64 totalBytesReceived;
     QList<Connection*> connections;
 
     void _q_finished();
