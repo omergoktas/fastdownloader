@@ -75,13 +75,15 @@ void FastDownloaderPrivate::_q_finished()
 
     Connection* connection = connectionFor(q->sender());
 
+    emit q->finished(connection->id);
+
     if (connection->reply->error() != QNetworkReply::NoError)
         return q->abort();
 
-    emit q->finished(connection->id);
-
-    if (downloadCompleted())
+    if (downloadCompleted()) {
         emit q->finished();
+        free();
+    }
 }
 
 void FastDownloaderPrivate::deleteConnection(FastDownloaderPrivate::Connection* connection)
@@ -204,15 +206,17 @@ FastDownloaderPrivate::Connection* FastDownloaderPrivate::connectionFor(const QO
     return nullptr;
 }
 
-QList<FastDownloaderPrivate::Connection> FastDownloaderPrivate::fakeCopyForConnections() const
+QList<FastDownloaderPrivate::Connection> FastDownloaderPrivate::fakeCopyForActiveConnections() const
 {
     QList<FastDownloaderPrivate::Connection> fakeCopy;
     for (Connection* connection : connections) {
-        Connection c;
-        c.bytesReceived = connection->bytesReceived;
-        c.bytesTotal = connection->bytesTotal;
-        c.id = connection->id;
-        fakeCopy.append(c);
+        if (connection->reply->isRunning()) {
+            Connection c;
+            c.bytesReceived = connection->bytesReceived;
+            c.bytesTotal = connection->bytesTotal;
+            c.id = connection->id;
+            fakeCopy.append(c);
+        }
     }
     return fakeCopy;
 }
@@ -280,7 +284,8 @@ void FastDownloaderPrivate::_q_downloadProgress(qint64 /*bytesReceived*/, qint64
     Q_Q(FastDownloader);
     Connection* connection = connectionFor(q->sender());
     emit q->downloadProgress(connection->id, connection->bytesReceived, connection->bytesTotal);
-    emit q->downloadProgress(totalBytesReceived, contentLength);
+    if (connection->reply->error() == QNetworkReply::NoError)
+        emit q->downloadProgress(totalBytesReceived, contentLength);
 }
 
 FastDownloader::FastDownloader(const QUrl& url, int numberOfParallelConnections, QObject* parent)
@@ -295,6 +300,13 @@ FastDownloader::FastDownloader(const QUrl& url, int numberOfParallelConnections,
 
 FastDownloader::FastDownloader(QObject* parent) : FastDownloader(QUrl(), 5, parent)
 {
+}
+
+FastDownloader::~FastDownloader()
+{
+    Q_D(const FastDownloader);
+    if (d->running)
+        abort();
 }
 
 qint64 FastDownloader::contentLength() const
@@ -725,20 +737,17 @@ void FastDownloader::abort()
 
     qint64 contentLength = d->contentLength;
     qint64 totalBytesReceived = d->totalBytesReceived;
-    const QList<FastDownloaderPrivate::Connection>& fakeConnections = d->fakeCopyForConnections();
+    const QList<FastDownloaderPrivate::Connection>& fakeConnections = d->fakeCopyForActiveConnections();
 
     d->free();
 
-    QMetaObject::invokeMethod(this, [=] {
-        for (const FastDownloaderPrivate::Connection& fakeConnection : fakeConnections) {
-            emit error(fakeConnection.id, QNetworkReply::OperationCanceledError);
-            emit downloadProgress(fakeConnection.id, fakeConnection.bytesReceived, fakeConnection.bytesTotal);
-            emit finished(fakeConnection.id);
-        }
-
-        emit downloadProgress(totalBytesReceived, contentLength);
-        emit finished();
-    }, Qt::QueuedConnection);
+    for (const FastDownloaderPrivate::Connection& fakeConnection : fakeConnections) {
+        emit error(fakeConnection.id, QNetworkReply::OperationCanceledError);
+        emit downloadProgress(fakeConnection.id, fakeConnection.bytesReceived, fakeConnection.bytesTotal);
+        emit finished(fakeConnection.id);
+    }
+    emit downloadProgress(totalBytesReceived, contentLength);
+    emit finished();
 }
 
 #include "moc_fastdownloader.cpp"

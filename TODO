@@ -1,5 +1,12 @@
-- Clear inline todos
 - Let the user to be able to fetch the desired amount of data from the desired point.
 - Let the user to be able to program the utility class to fetch complex chunk portions at once.
 - Let the user to be able to save a downloading state, hence he can later restore and continue to download.
-- Let the user have more control over error states (i.e do not simply stop downloading completely)
+- Let the user to be able to play/pause the download.
+- Let the user have more control over error states (i.e do not simply stop downloading and clear everything)
+
+- Update readme and publish a release on github after testing the lib with some applications (i.e FastMediaPlayer)
+- Add doxygen documentations and example codes
+- Clear inline todos, beautify this file
+- Reorder and clean functions and variables
+- Finish read/skip/peek and other buffer dealing functions
+- Finish the feature that spawns new connections in order to complete downloading whenver a connection finishes downloading issued chunk that restricted with chunk size limit

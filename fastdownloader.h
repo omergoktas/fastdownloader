@@ -28,6 +28,7 @@ class FASTDOWNLOADER_EXPORT FastDownloader : public QObject
 public:
     explicit FastDownloader(const QUrl& url, int numberOfParallelConnections = 5, QObject* parent = nullptr);
     explicit FastDownloader(QObject* parent = nullptr);
+    ~FastDownloader() override;
 
     qint64 contentLength() const;
     QUrl resolvedUrl() const;

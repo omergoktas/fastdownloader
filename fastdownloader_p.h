@@ -23,12 +23,9 @@ public:
     int generateUniqueId() const;
     bool connectionExists(int id) const;
     bool downloadCompleted() const;
-
     Connection* connectionFor(int id) const;
     Connection* connectionFor(const QObject* sender) const;
-
-    QList<Connection> fakeCopyForConnections() const;
-
+    QList<Connection> fakeCopyForActiveConnections() const;
     void free();
     void startParallelDownloading();
     void deleteConnection(Connection* connection);
