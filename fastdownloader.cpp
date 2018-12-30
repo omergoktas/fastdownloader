@@ -6,7 +6,7 @@ FastDownloaderPrivate::FastDownloaderPrivate() : QObjectPrivate()
   , running(false)
   , resolved(false)
   , parallelDownloadPossible(false)
-  , bytesTotal(0)
+  , contentLength(-1)
 {
 }
 
@@ -30,9 +30,9 @@ void FastDownloaderPrivate::startParallelDownloading()
 
         qint64 slice = 0;
         if (i == q->numberOfParallelConnections() - 1)
-            slice = bytesTotal - begin;
+            slice = contentLength - begin;
         else
-            slice = bytesTotal / q->numberOfParallelConnections();
+            slice = contentLength / q->numberOfParallelConnections();
 
         if (q->connectionSizeLimit() > 0)
             end = begin + qMin(q->connectionSizeLimit(), slice) - 1;
@@ -54,6 +54,7 @@ qint64 FastDownloaderPrivate::calculateTotalBytesReceived() const
 bool FastDownloaderPrivate::testParallelDownload(const FastDownloaderPrivate::Connection* connection)
 {
     Q_ASSERT(connection && connection->reply);
+
     return connection->reply->hasRawHeader("Accept-Ranges")
             && connection->reply->hasRawHeader("Content-Length")
             && connection->reply->rawHeader("Accept-Ranges") == "bytes"
@@ -80,7 +81,6 @@ void FastDownloaderPrivate::_q_finished()
 void FastDownloaderPrivate::deleteConnection(FastDownloaderPrivate::Connection* connection)
 {
     Q_Q(const FastDownloader);
-
     connection->reply->disconnect(q);
     if (connection->reply->isRunning())
         connection->reply->abort();
@@ -93,7 +93,7 @@ void FastDownloaderPrivate::createConnection(const QUrl& url, qint64 begin, qint
 {
     Q_Q(const FastDownloader);
 
-    bool isInitial = begin < 0;
+    const bool isInitial = begin < 0;
 
     QNetworkRequest request;
     request.setUrl(url);
@@ -137,15 +137,13 @@ void FastDownloaderPrivate::createConnection(const QUrl& url, qint64 begin, qint
 quint32 FastDownloaderPrivate::generateUniqueId() const
 {
     quint32 id;
-
     do {
         id = QRandomGenerator::global()->generate();
     } while(connectionExists(id));
-
     return id;
 }
 
-qint64 FastDownloaderPrivate::contentLength(const FastDownloaderPrivate::Connection* connection)
+qint64 FastDownloaderPrivate::testContentLength(const FastDownloaderPrivate::Connection* connection)
 {
     Q_ASSERT(connection && connection->reply);
     QVariant contentLength = connection->reply->header(QNetworkRequest::ContentLengthHeader);
@@ -160,7 +158,6 @@ bool FastDownloaderPrivate::connectionExists(quint32 id) const
         if (connection->id == id)
             return true;
     }
-
     return false;
 }
 
@@ -170,7 +167,6 @@ bool FastDownloaderPrivate::downloadCompleted() const
         if (connection->reply->isRunning())
             return false;
     }
-
     return true;
 }
 
@@ -180,7 +176,6 @@ FastDownloaderPrivate::Connection* FastDownloaderPrivate::connectionFor(quint32 
         if (connection->id == id)
             return connection;
     }
-
     return nullptr;
 }
 
@@ -195,7 +190,6 @@ FastDownloaderPrivate::Connection* FastDownloaderPrivate::connectionFor(const QO
     }
 
     Q_ASSERT(0);
-
     return nullptr;
 }
 
@@ -225,7 +219,7 @@ void FastDownloaderPrivate::_q_readyRead()
     } else {
         resolved = true;
         resolvedUrl = connection->reply->url();
-        bytesTotal = contentLength(connection);
+        contentLength = testContentLength(connection);
         parallelDownloadPossible = testParallelDownload(connection);
 
         emit q->resolved(resolvedUrl);
@@ -244,7 +238,6 @@ void FastDownloaderPrivate::_q_readyRead()
 void FastDownloaderPrivate::_q_error(QNetworkReply::NetworkError code)
 {
     Q_Q(FastDownloader);
-
     Connection* connection = connectionFor(q->sender());
     q->error(connection->id, code);
 }
@@ -252,7 +245,6 @@ void FastDownloaderPrivate::_q_error(QNetworkReply::NetworkError code)
 void FastDownloaderPrivate::_q_sslErrors(const QList<QSslError>& errors)
 {
     Q_Q(FastDownloader);
-
     Connection* connection = connectionFor(q->sender());
     q->sslErrors(connection->id, errors);
 }
@@ -260,11 +252,10 @@ void FastDownloaderPrivate::_q_sslErrors(const QList<QSslError>& errors)
 void FastDownloaderPrivate::_q_downloadProgress(qint64 bytesReceived, qint64 bytesTotal)
 {
     Q_Q(FastDownloader);
-
     Connection* connection = connectionFor(q->sender());
     connection->bytesReceived = bytesReceived;
     q->downloadProgress(connection->id, bytesReceived, bytesTotal);
-    q->downloadProgress(calculateTotalBytesReceived(), this->bytesTotal);
+    q->downloadProgress(calculateTotalBytesReceived(), contentLength);
 }
 
 FastDownloader::FastDownloader(const QUrl& url, int numberOfParallelConnections, QObject* parent)
@@ -281,10 +272,10 @@ FastDownloader::FastDownloader(QObject* parent) : FastDownloader(QUrl(), 5, pare
 {
 }
 
-qint64 FastDownloader::size() const
+qint64 FastDownloader::contentLength() const
 {
     Q_D(const FastDownloader);
-    return d->bytesTotal;
+    return d->contentLength;
 }
 
 FastDownloader::FastDownloader::FastDownloader(FastDownloaderPrivate& dd, QObject* parent)
@@ -312,7 +303,6 @@ void FastDownloader::setConnectionSizeLimit(qint64 connectionSizeLimit)
 QUrl FastDownloader::resolvedUrl() const
 {
     Q_D(const FastDownloader);
-
     return d->resolvedUrl;
 }
 
@@ -372,21 +362,18 @@ void FastDownloader::setMaxRedirectsAllowed(int maxRedirectsAllowed)
 bool FastDownloader::isRunning() const
 {
     Q_D(const FastDownloader);
-
     return d->running;
 }
 
 bool FastDownloader::isResolved() const
 {
     Q_D(const FastDownloader);
-
     return d->resolved;
 }
 
 bool FastDownloader::isParallelDownloadPossible() const
 {
     Q_D(const FastDownloader);
-
     return d->parallelDownloadPossible;
 }
 

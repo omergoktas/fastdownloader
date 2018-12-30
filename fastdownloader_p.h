@@ -28,7 +28,7 @@ public:
     Connection* connectionFor(quint32 id) const;
     Connection* connectionFor(const QObject* sender) const;
 
-    static qint64 contentLength(const Connection* connection);
+    static qint64 testContentLength(const Connection* connection);
     static bool testParallelDownload(const Connection* connection);
 
     QScopedPointer<QNetworkAccessManager> manager;
@@ -36,7 +36,7 @@ public:
     bool resolved;
     bool parallelDownloadPossible;
     QUrl resolvedUrl;
-    qint64 bytesTotal;
+    qint64 contentLength;
     QList<Connection*> connections;
 
     void _q_finished();
