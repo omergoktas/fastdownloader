@@ -197,11 +197,13 @@ void FastDownloaderPrivate::_q_redirected(const QUrl& url)
 {
     Q_Q(FastDownloader);
 
+    /*!
+       NOTE: Unproper error expression, no errorString either.
+             May Qt handles the same situation though.
+    */
     if (resolved) {
         qWarning("WARNING: Suspicious redirection rejected");
-        _q_error(QNetworkReply::InsecureRedirectError);
-        q->abort(); // WARNING: That may also trigger an error, 2 errors total
-        // FIXME: Unproper error expression, no errorString either
+        q->abort(); // Triggers an OperationCanceledError in anyway
         return;
     }
 
@@ -238,15 +240,13 @@ void FastDownloaderPrivate::_q_readyRead()
 void FastDownloaderPrivate::_q_error(QNetworkReply::NetworkError code)
 {
     Q_Q(FastDownloader);
-    Connection* connection = connectionFor(q->sender());
-    q->error(connection->id, code);
+    q->error(connectionFor(q->sender())->id, code);
 }
 
 void FastDownloaderPrivate::_q_sslErrors(const QList<QSslError>& errors)
 {
     Q_Q(FastDownloader);
-    Connection* connection = connectionFor(q->sender());
-    q->sslErrors(connection->id, errors);
+    q->sslErrors(connectionFor(q->sender())->id, errors);
 }
 
 void FastDownloaderPrivate::_q_downloadProgress(qint64 bytesReceived, qint64 bytesTotal)
