@@ -2,6 +2,7 @@
 Basic utility library based on Qt/C++ for fast, parallel downloads. It lets you download a file with more than one simultaneous connection.
 
 ## Basic usage
+> C++14 needed
 ```cpp
 #include <QCoreApplication>
 #include <QBuffer>
