@@ -12,6 +12,91 @@ FastDownloaderPrivate::FastDownloaderPrivate() : QObjectPrivate()
 {
 }
 
+int FastDownloaderPrivate::generateUniqueId() const
+{
+    static const int min = std::numeric_limits<int>::min();
+    static const int max = std::numeric_limits<int>::max();
+    int id;
+    do {
+        id = QRandomGenerator::global()->bounded(min, max);
+    } while(connectionExists(id));
+    return id;
+}
+
+bool FastDownloaderPrivate::downloadCompleted() const
+{
+    for (Connection* connection : connections) {
+        if (connection->reply->isRunning())
+            return false;
+    }
+    return true;
+}
+
+bool FastDownloaderPrivate::connectionExists(int id) const
+{
+    for (Connection* connection : connections) {
+        if (connection->id == id)
+            return true;
+    }
+    return false;
+}
+
+FastDownloaderPrivate::Connection* FastDownloaderPrivate::connectionFor(int id) const
+{
+    for (Connection* connection : connections) {
+        if (connection->id == id)
+            return connection;
+    }
+    return nullptr;
+}
+
+FastDownloaderPrivate::Connection* FastDownloaderPrivate::connectionFor(const QObject* sender) const
+{
+    const auto reply = qobject_cast<const QNetworkReply*>(sender);
+    Q_ASSERT(reply);
+
+    for (Connection* connection : connections) {
+        if (connection->reply == reply)
+            return connection;
+    }
+
+    Q_ASSERT(0);
+    return nullptr;
+}
+
+QList<FastDownloaderPrivate::Connection> FastDownloaderPrivate::createFakeCopyForActiveConnections() const
+{
+    QList<FastDownloaderPrivate::Connection> fakeCopy;
+    for (Connection* connection : connections) {
+        if (connection->reply->isRunning()) {
+            Connection c;
+            c.bytesReceived = connection->bytesReceived;
+            c.bytesTotal = connection->bytesTotal;
+            c.id = connection->id;
+            fakeCopy.append(c);
+        }
+    }
+    return fakeCopy;
+}
+
+void FastDownloaderPrivate::free()
+{
+    const QList<Connection*> copy(connections);
+    for (Connection* connection : copy)
+        deleteConnection(connection);
+}
+
+void FastDownloaderPrivate::reset()
+{
+    running = true;
+    resolved = false;
+    parallelDownloadPossible = false;
+    resolvedUrl.clear();
+    contentLength = 0;
+    totalBytesReceived = 0;
+    error = QNetworkReply::NoError;
+}
+
 void FastDownloaderPrivate::startParallelDownloading()
 {
     Q_Q(const FastDownloader);
@@ -43,57 +128,6 @@ void FastDownloaderPrivate::startParallelDownloading()
 
         createConnection(resolvedUrl, begin, end);
     } while(++i < q->numberOfParallelConnections());
-}
-
-void FastDownloaderPrivate::free()
-{
-    const QList<Connection*> copy(connections);
-    for (Connection* connection : copy)
-        deleteConnection(connection);
-}
-
-void FastDownloaderPrivate::reset()
-{
-    running = true;
-    resolved = false;
-    parallelDownloadPossible = false;
-    resolvedUrl.clear();
-    contentLength = 0;
-    totalBytesReceived = 0;
-    error = QNetworkReply::NoError;
-}
-
-bool FastDownloaderPrivate::testParallelDownload(const FastDownloaderPrivate::Connection* connection)
-{
-    Q_ASSERT(connection && connection->reply);
-
-    return connection->reply->hasRawHeader("Accept-Ranges")
-            && connection->reply->hasRawHeader("Content-Length")
-            && connection->reply->rawHeader("Accept-Ranges") == "bytes"
-            && connection->reply->rawHeader("Content-Length").toLongLong() > connection->reply->bytesAvailable()
-            && connection->reply->rawHeader("Content-Length").toLongLong() > FastDownloader::MIN_CONTENT_SIZE;
-}
-
-void FastDownloaderPrivate::_q_finished()
-{
-    Q_Q(FastDownloader);
-
-    Connection* connection = connectionFor(q->sender());
-    const int id = connection->id;
-    const QNetworkReply::NetworkError error = connection->reply->error();
-
-    if (downloadCompleted() && error == QNetworkReply::NoError) {
-        running = false;
-        free();
-    }
-
-    emit q->finished(id);
-
-    if (error != QNetworkReply::NoError)
-        return q->abort();
-
-    if (downloadCompleted())
-        emit q->finished();
 }
 
 void FastDownloaderPrivate::deleteConnection(FastDownloaderPrivate::Connection* connection)
@@ -157,17 +191,6 @@ void FastDownloaderPrivate::createConnection(const QUrl& url, qint64 begin, qint
     connections.append(connection);
 }
 
-int FastDownloaderPrivate::generateUniqueId() const
-{
-    static const int min = std::numeric_limits<int>::min();
-    static const int max = std::numeric_limits<int>::max();
-    int id;
-    do {
-        id = QRandomGenerator::global()->bounded(min, max);
-    } while(connectionExists(id));
-    return id;
-}
-
 qint64 FastDownloaderPrivate::testContentLength(const FastDownloaderPrivate::Connection* connection)
 {
     Q_ASSERT(connection && connection->reply);
@@ -177,73 +200,37 @@ qint64 FastDownloaderPrivate::testContentLength(const FastDownloaderPrivate::Con
     return contentLength.toLongLong();
 }
 
-bool FastDownloaderPrivate::connectionExists(int id) const
+bool FastDownloaderPrivate::testParallelDownload(const FastDownloaderPrivate::Connection* connection)
 {
-    for (Connection* connection : connections) {
-        if (connection->id == id)
-            return true;
-    }
-    return false;
+    Q_ASSERT(connection && connection->reply);
+
+    return connection->reply->hasRawHeader("Accept-Ranges")
+            && connection->reply->hasRawHeader("Content-Length")
+            && connection->reply->rawHeader("Accept-Ranges") == "bytes"
+            && connection->reply->rawHeader("Content-Length").toLongLong() > connection->reply->bytesAvailable()
+            && connection->reply->rawHeader("Content-Length").toLongLong() > FastDownloader::MIN_CONTENT_SIZE;
 }
 
-bool FastDownloaderPrivate::downloadCompleted() const
-{
-    for (Connection* connection : connections) {
-        if (connection->reply->isRunning())
-            return false;
-    }
-    return true;
-}
-
-FastDownloaderPrivate::Connection* FastDownloaderPrivate::connectionFor(int id) const
-{
-    for (Connection* connection : connections) {
-        if (connection->id == id)
-            return connection;
-    }
-    return nullptr;
-}
-
-FastDownloaderPrivate::Connection* FastDownloaderPrivate::connectionFor(const QObject* sender) const
-{
-    const auto reply = qobject_cast<const QNetworkReply*>(sender);
-    Q_ASSERT(reply);
-
-    for (Connection* connection : connections) {
-        if (connection->reply == reply)
-            return connection;
-    }
-
-    Q_ASSERT(0);
-    return nullptr;
-}
-
-QList<FastDownloaderPrivate::Connection> FastDownloaderPrivate::fakeCopyForActiveConnections() const
-{
-    QList<FastDownloaderPrivate::Connection> fakeCopy;
-    for (Connection* connection : connections) {
-        if (connection->reply->isRunning()) {
-            Connection c;
-            c.bytesReceived = connection->bytesReceived;
-            c.bytesTotal = connection->bytesTotal;
-            c.id = connection->id;
-            fakeCopy.append(c);
-        }
-    }
-    return fakeCopy;
-}
-
-void FastDownloaderPrivate::_q_redirected(const QUrl& url)
+void FastDownloaderPrivate::_q_finished()
 {
     Q_Q(FastDownloader);
 
-    if (resolved) {
-        qWarning("WARNING: Suspicious redirection rejected");
-        q->abort();
-        return;
+    Connection* connection = connectionFor(q->sender());
+    const int id = connection->id;
+    const QNetworkReply::NetworkError error = connection->reply->error();
+
+    if (downloadCompleted() && error == QNetworkReply::NoError) {
+        running = false;
+        free();
     }
 
-    emit q->redirected(url);
+    emit q->finished(id);
+
+    if (error != QNetworkReply::NoError)
+        return q->abort();
+
+    if (downloadCompleted())
+        emit q->finished();
 }
 
 void FastDownloaderPrivate::_q_readyRead()
@@ -279,6 +266,19 @@ void FastDownloaderPrivate::_q_readyRead()
     }
 }
 
+void FastDownloaderPrivate::_q_redirected(const QUrl& url)
+{
+    Q_Q(FastDownloader);
+
+    if (resolved) {
+        qWarning("WARNING: Suspicious redirection rejected");
+        q->abort();
+        return;
+    }
+
+    emit q->redirected(url);
+}
+
 void FastDownloaderPrivate::_q_error(QNetworkReply::NetworkError code)
 {
     Q_Q(FastDownloader);
@@ -309,10 +309,16 @@ FastDownloader::FastDownloader(const QUrl& url, int numberOfParallelConnections,
     , m_maxRedirectsAllowed(5)
     , m_connectionSizeLimit(0)
     , m_readBufferSize(0)
+    , m_sslConfiguration(QSslConfiguration::defaultConfiguration())
 {
 }
 
 FastDownloader::FastDownloader(QObject* parent) : FastDownloader(QUrl(), 5, parent)
+{
+}
+
+FastDownloader::FastDownloader(FastDownloaderPrivate& dd, QObject* parent)
+    : QObject(dd, parent)
 {
 }
 
@@ -321,58 +327,6 @@ FastDownloader::~FastDownloader()
     Q_D(const FastDownloader);
     if (d->running)
         abort();
-}
-
-qint64 FastDownloader::contentLength() const
-{
-    Q_D(const FastDownloader);
-    return d->contentLength;
-}
-
-qint64 FastDownloader::bytesReceived() const
-{
-    Q_D(const FastDownloader);
-    return d->totalBytesReceived;
-}
-
-QNetworkReply::NetworkError FastDownloader::error() const
-{
-    Q_D(const FastDownloader);
-    return d->error;
-}
-
-bool FastDownloader::isError() const
-{
-    Q_D(const FastDownloader);
-    return d->error != QNetworkReply::NoError;
-}
-
-FastDownloader::FastDownloader::FastDownloader(FastDownloaderPrivate& dd, QObject* parent)
-    : QObject(dd, parent)
-{
-}
-
-qint64 FastDownloader::connectionSizeLimit() const
-{
-    return m_connectionSizeLimit;
-}
-
-void FastDownloader::setConnectionSizeLimit(qint64 connectionSizeLimit)
-{
-    Q_D(const FastDownloader);
-
-    if (d->running) {
-        qWarning("FastDownloader::setConnectionSizeLimit: Cannot set, a download is already in progress");
-        return;
-    }
-
-    m_connectionSizeLimit = connectionSizeLimit;
-}
-
-QUrl FastDownloader::resolvedUrl() const
-{
-    Q_D(const FastDownloader);
-    return d->resolvedUrl;
 }
 
 QUrl FastDownloader::url() const
@@ -428,28 +382,21 @@ void FastDownloader::setMaxRedirectsAllowed(int maxRedirectsAllowed)
     m_maxRedirectsAllowed = maxRedirectsAllowed;
 }
 
-bool FastDownloader::isRunning() const
+qint64 FastDownloader::connectionSizeLimit() const
 {
-    Q_D(const FastDownloader);
-    return d->running;
+    return m_connectionSizeLimit;
 }
 
-bool FastDownloader::isFinished() const
+void FastDownloader::setConnectionSizeLimit(qint64 connectionSizeLimit)
 {
     Q_D(const FastDownloader);
-    return !d->running;
-}
 
-bool FastDownloader::isResolved() const
-{
-    Q_D(const FastDownloader);
-    return d->resolved;
-}
+    if (d->running) {
+        qWarning("FastDownloader::setConnectionSizeLimit: Cannot set, a download is already in progress");
+        return;
+    }
 
-bool FastDownloader::isParallelDownloadPossible() const
-{
-    Q_D(const FastDownloader);
-    return d->parallelDownloadPossible;
+    m_connectionSizeLimit = connectionSizeLimit;
 }
 
 qint64 FastDownloader::readBufferSize() const
@@ -492,6 +439,111 @@ QNetworkAccessManager* FastDownloader::networkAccessManager() const
     return d->manager.data();
 }
 
+QUrl FastDownloader::resolvedUrl() const
+{
+    Q_D(const FastDownloader);
+    return d->resolvedUrl;
+}
+
+qint64 FastDownloader::contentLength() const
+{
+    Q_D(const FastDownloader);
+    return d->contentLength;
+}
+
+qint64 FastDownloader::bytesReceived() const
+{
+    Q_D(const FastDownloader);
+    return d->totalBytesReceived;
+}
+
+QNetworkReply::NetworkError FastDownloader::error() const
+{
+    Q_D(const FastDownloader);
+    return d->error;
+}
+
+bool FastDownloader::isError() const
+{
+    Q_D(const FastDownloader);
+    return d->error != QNetworkReply::NoError;
+}
+
+bool FastDownloader::isRunning() const
+{
+    Q_D(const FastDownloader);
+    return d->running;
+}
+
+bool FastDownloader::isFinished() const
+{
+    Q_D(const FastDownloader);
+    return !d->running;
+}
+
+bool FastDownloader::isResolved() const
+{
+    Q_D(const FastDownloader);
+    return d->resolved;
+}
+
+bool FastDownloader::isParallelDownloadPossible() const
+{
+    Q_D(const FastDownloader);
+    return d->parallelDownloadPossible;
+}
+
+bool FastDownloader::atEnd(int id) const
+{
+    Q_D(const FastDownloader);
+
+    if (!d->running) {
+        qWarning("FastDownloader::atEnd: No downloads in progress");
+        return true;
+    }
+
+    if (!d->connectionExists(id)) {
+        qWarning("FastDownloader::atEnd: No such connection matches with the id provided");
+        return true;
+    }
+
+    return d->connectionFor(id)->reply->atEnd();
+}
+
+qint64 FastDownloader::head(int id) const
+{
+    Q_D(const FastDownloader);
+
+    if (!d->running) {
+        qWarning("FastDownloader::atEnd: No downloads in progress");
+        return true;
+    }
+
+    if (!d->connectionExists(id)) {
+        qWarning("FastDownloader::atEnd: No such connection matches with the id provided");
+        return true;
+    }
+
+    return d->connectionFor(id)->head;
+}
+
+qint64 FastDownloader::pos(int id) const
+{
+    Q_D(const FastDownloader);
+
+    if (!d->running) {
+        qWarning("FastDownloader::atEnd: No downloads in progress");
+        return true;
+    }
+
+    if (!d->connectionExists(id)) {
+        qWarning("FastDownloader::atEnd: No such connection matches with the id provided");
+        return true;
+    }
+
+    return d->connectionFor(id)->pos;
+}
+
 qint64 FastDownloader::bytesAvailable(int id) const
 {
     Q_D(const FastDownloader);
@@ -507,27 +559,6 @@ qint64 FastDownloader::bytesAvailable(int id) const
     }
 
     return d->connectionFor(id)->reply->bytesAvailable();
-}
-
-qint64 FastDownloader::skip(int id, qint64 maxSize) const
-{
-    Q_D(const FastDownloader);
-
-    if (!d->running) {
-        qWarning("FastDownloader::skip: No downloads in progress");
-        return -1;
-    }
-
-    if (!d->connectionExists(id)) {
-        qWarning("FastDownloader::skip: No such connection matches with the id provided");
-        return -1;
-    }
-
-    FastDownloaderPrivate::Connection* connection = d->connectionFor(id);
-    const qint64 length = connection->reply->skip(maxSize);
-    if (length > 0)
-        connection->pos += length;
-    return length;
 }
 
 qint64 FastDownloader::peek(int id, char* data, qint64 maxSize)
@@ -562,6 +593,27 @@ QByteArray FastDownloader::peek(int id, qint64 maxSize)
     }
 
     return d->connectionFor(id)->reply->peek(maxSize);
+}
+
+qint64 FastDownloader::skip(int id, qint64 maxSize) const
+{
+    Q_D(const FastDownloader);
+
+    if (!d->running) {
+        qWarning("FastDownloader::skip: No downloads in progress");
+        return -1;
+    }
+
+    if (!d->connectionExists(id)) {
+        qWarning("FastDownloader::skip: No such connection matches with the id provided");
+        return -1;
+    }
+
+    FastDownloaderPrivate::Connection* connection = d->connectionFor(id);
+    const qint64 length = connection->reply->skip(maxSize);
+    if (length > 0)
+        connection->pos += length;
+    return length;
 }
 
 qint64 FastDownloader::read(int id, char* data, qint64 maxSize) const
@@ -669,57 +721,6 @@ QByteArray FastDownloader::readLine(int id, qint64 maxSize) const
     return data;
 }
 
-bool FastDownloader::atEnd(int id) const
-{
-    Q_D(const FastDownloader);
-
-    if (!d->running) {
-        qWarning("FastDownloader::atEnd: No downloads in progress");
-        return true;
-    }
-
-    if (!d->connectionExists(id)) {
-        qWarning("FastDownloader::atEnd: No such connection matches with the id provided");
-        return true;
-    }
-
-    return d->connectionFor(id)->reply->atEnd();
-}
-
-qint64 FastDownloader::head(int id) const
-{
-    Q_D(const FastDownloader);
-
-    if (!d->running) {
-        qWarning("FastDownloader::atEnd: No downloads in progress");
-        return true;
-    }
-
-    if (!d->connectionExists(id)) {
-        qWarning("FastDownloader::atEnd: No such connection matches with the id provided");
-        return true;
-    }
-
-    return d->connectionFor(id)->head;
-}
-
-qint64 FastDownloader::pos(int id) const
-{
-    Q_D(const FastDownloader);
-
-    if (!d->running) {
-        qWarning("FastDownloader::atEnd: No downloads in progress");
-        return true;
-    }
-
-    if (!d->connectionExists(id)) {
-        qWarning("FastDownloader::atEnd: No such connection matches with the id provided");
-        return true;
-    }
-
-    return d->connectionFor(id)->pos;
-}
-
 QString FastDownloader::errorString(int id) const
 {
     Q_D(const FastDownloader);
@@ -807,7 +808,7 @@ void FastDownloader::abort()
         return;
     }
 
-    const QList<FastDownloaderPrivate::Connection>& fakeConnections = d->fakeCopyForActiveConnections();
+    const QList<FastDownloaderPrivate::Connection>& fakeConnections = d->createFakeCopyForActiveConnections();
 
     d->error = QNetworkReply::OperationCanceledError;
     d->running = false;

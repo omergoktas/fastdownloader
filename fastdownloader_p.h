@@ -11,10 +11,10 @@ class FastDownloaderPrivate : public QObjectPrivate
     struct Connection
     {
         int id = 0;
-        qint64 pos = 0;
         qint64 head = 0;
-        qint64 bytesTotal = 0;
+        qint64 pos = 0;
         qint64 bytesReceived = 0;
+        qint64 bytesTotal = 0;
         QNetworkReply* reply = nullptr;
     };
 
@@ -22,11 +22,12 @@ public:
     FastDownloaderPrivate();
 
     int generateUniqueId() const;
-    bool connectionExists(int id) const;
     bool downloadCompleted() const;
+    bool connectionExists(int id) const;
+
     Connection* connectionFor(int id) const;
     Connection* connectionFor(const QObject* sender) const;
-    QList<Connection> fakeCopyForActiveConnections() const;
+    QList<Connection> createFakeCopyForActiveConnections() const;
 
     void free();
     void reset();

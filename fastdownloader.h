@@ -21,7 +21,7 @@ class FASTDOWNLOADER_EXPORT FastDownloader : public QObject
         MAX_PARALLEL_CONNECTIONS = 6,
 
         // The minimum possible content size allowed for parallel downloads. Lesser sized data
-        // will not be having parallel download feature enabled (100 Kb).
+        // will not be downloaded with parallel download feature (100 Kb).
         MIN_CONTENT_SIZE = 102400
     };
 
@@ -67,7 +67,7 @@ public:
     qint64 pos(int id) const;
     qint64 bytesAvailable(int id) const;
 
-    qint64 peek(int id, char *data, qint64 maxSize);
+    qint64 peek(int id, char* data, qint64 maxSize);
     QByteArray peek(int id, qint64 maxSize);
 
     qint64 skip(int id, qint64 maxSize) const;
