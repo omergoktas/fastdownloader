@@ -29,6 +29,25 @@
 #include <QSslError>
 #include <QNetworkReply>
 
+/*!
+    Some notes:
+    If you want to understand the logic more, read Qt Documentations of QNetworkAccessManager,
+    QNetworkReply and QIODevice. I've tried to keep compliance with those. Almost the same logic.
+    Each connection (chunk) identified with an unique id. You can reach out those chunks and their
+    data by using their id. It is best to read data of a chunk, with its id, when readyRead signal
+    is emitted. You can read it later, but make sure you read everything before an error state
+    occur, or the last download connection is over (before the last finished signal is emitted)
+
+    Internal data buffer is chopped whenever you read it (since we don't have a secondary buffer,
+    the only buffer we have is kept and managed by QNetworkReply and I suggest you to review
+    QNetworkReply's internal codes if you want to understand more about buffer cleansing)
+
+    Also, all the internal connections and QNetworkReply instances are cleared, with all their
+    buffers and data, right before the final "finished" signal is emitted on the last ongoing chunk.
+    Same goes for abort function and any error state. You won't be able to read any data after
+    calling abort, or any "error" signal is being emitted.
+ */
+
 class FastDownloaderPrivate;
 class FASTDOWNLOADER_EXPORT FastDownloader : public QObject
 {
@@ -77,6 +96,10 @@ public:
 
     QNetworkAccessManager* networkAccessManager() const;
 
+    /*!
+        Following functions are filled with necessary information
+        right before the "resolved" signal is emitted.
+    */
     QUrl resolvedUrl() const;
     qint64 contentLength() const;
     qint64 bytesReceived() const;
@@ -88,6 +111,11 @@ public:
     bool isResolved() const;
     bool isSimultaneousDownloadPossible() const;
 
+    /*!
+        Following functions should be used between the "resolved"
+        and the last "finished" signals are being emitted (both
+        signals are not included), or before any error occur.
+    */
     bool atEnd(int id) const;
 
     qint64 head(int id) const;
