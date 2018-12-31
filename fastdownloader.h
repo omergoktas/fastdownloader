@@ -30,9 +30,6 @@ public:
     explicit FastDownloader(QObject* parent = nullptr);
     ~FastDownloader() override;
 
-    qint64 contentLength() const;
-    QUrl resolvedUrl() const;
-
     QUrl url() const;
     void setUrl(const QUrl& url);
 
@@ -41,10 +38,6 @@ public:
 
     int maxRedirectsAllowed() const;
     void setMaxRedirectsAllowed(int maxRedirectsAllowed);
-
-    bool isRunning() const;
-    bool isResolved() const;
-    bool isParallelDownloadPossible() const;
 
     qint64 connectionSizeLimit() const;
     void setConnectionSizeLimit(qint64 connectionSizeLimit);
@@ -57,17 +50,37 @@ public:
 
     QNetworkAccessManager* networkAccessManager() const;
 
+    QUrl resolvedUrl() const;
+    qint64 contentLength() const;
+    qint64 bytesReceived() const;
+    QNetworkReply::NetworkError error() const;
+
+    bool isError() const;
+    bool isRunning() const;
+    bool isFinished() const; // exists for convenience
+    bool isResolved() const;
+    bool isParallelDownloadPossible() const;
+
     bool atEnd(int id) const;
+
+    qint64 head(int id) const;
+    qint64 pos(int id) const;
     qint64 bytesAvailable(int id) const;
+
     qint64 peek(int id, char *data, qint64 maxSize);
     QByteArray peek(int id, qint64 maxSize);
+
     qint64 skip(int id, qint64 maxSize) const;
+
     qint64 read(int id, char* data, qint64 maxSize) const;
     QByteArray read(int id, qint64 maxSize) const;
     QByteArray readAll(int id) const;
+
     qint64 readLine(int id, char* data, qint64 maxSize) const;
     QByteArray readLine(int id, qint64 maxSize = 0) const;
+
     QString errorString(int id) const;
+
     void ignoreSslErrors(int id) const;
     void ignoreSslErrors(int id, const QList<QSslError>& errors) const;
 

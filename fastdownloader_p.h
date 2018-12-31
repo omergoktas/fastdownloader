@@ -12,6 +12,7 @@ class FastDownloaderPrivate : public QObjectPrivate
     {
         int id = 0;
         qint64 pos = 0;
+        qint64 head = 0;
         qint64 bytesTotal = 0;
         qint64 bytesReceived = 0;
         QNetworkReply* reply = nullptr;
@@ -26,7 +27,9 @@ public:
     Connection* connectionFor(int id) const;
     Connection* connectionFor(const QObject* sender) const;
     QList<Connection> fakeCopyForActiveConnections() const;
+
     void free();
+    void reset();
     void startParallelDownloading();
     void deleteConnection(Connection* connection);
     void createConnection(const QUrl& url, qint64 begin = -1, qint64 end = -1);
@@ -41,6 +44,7 @@ public:
     QUrl resolvedUrl;
     qint64 contentLength;
     qint64 totalBytesReceived;
+    QNetworkReply::NetworkError error;
     QList<Connection*> connections;
 
     void _q_finished();
