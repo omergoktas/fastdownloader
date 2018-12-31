@@ -47,6 +47,8 @@ int FastDownloaderPrivate::generateUniqueId() const
 
 bool FastDownloaderPrivate::downloadCompleted() const
 {
+    if (nextPortionAvailable())
+        return false;
     for (Connection* connection : connections) {
         if (connection->reply->isRunning())
             return false;
@@ -61,6 +63,48 @@ bool FastDownloaderPrivate::connectionExists(int id) const
             return true;
     }
     return false;
+}
+
+bool FastDownloaderPrivate::nextPortionAvailable() const
+{
+    Q_Q(const FastDownloader);
+
+    if (parallelDownloadPossible
+            && q->connectionSizeLimit() > 0
+            && q->numberOfParallelConnections() > 1) {
+        qint64 bytesTotal = 0;
+        for (Connection* connection : connections)
+            bytesTotal += connection->bytesTotal;
+        if (bytesTotal < contentLength)
+            return true;
+        else
+            return false;
+    } else {
+        return false;
+    }
+}
+
+qint64 FastDownloaderPrivate::nextPortionPosition() const
+{
+    if (!nextPortionAvailable())
+        return -1;
+
+    qint64 nextPos = 0;
+    for (Connection* connection : connections) {
+        qint64 end = connection->head + connection->bytesTotal;
+        if (end > nextPos)
+            nextPos = end;
+    }
+
+    return nextPos;
+}
+
+qint64 FastDownloaderPrivate::untargetedDataSize() const
+{
+    qint64 bytesTotal = 0;
+    for (Connection* connection : connections)
+        bytesTotal += connection->bytesTotal;
+    return contentLength - bytesTotal;
 }
 
 FastDownloaderPrivate::Connection* FastDownloaderPrivate::connectionFor(int id) const
@@ -239,20 +283,33 @@ void FastDownloaderPrivate::_q_finished()
 
     Connection* connection = connectionFor(q->sender());
     const int id = connection->id;
+    const bool downloadFinished = downloadCompleted();
     const QNetworkReply::NetworkError error = connection->reply->error();
 
-    if (downloadCompleted() && error == QNetworkReply::NoError) {
+    if (downloadFinished && error == QNetworkReply::NoError) {
         running = false;
         free();
     }
 
     emit q->finished(id);
 
-    if (error != QNetworkReply::NoError)
-        return q->abort();
+    if (error != QNetworkReply::NoError) {
+        q->abort();
+        return;
+    }
 
-    if (downloadCompleted())
+    if (downloadFinished) {
         emit q->finished();
+        return;
+    }
+
+    qint64 nextPos = nextPortionPosition();
+    if (nextPos > 0) {
+        qint64 nextSize = untargetedDataSize();
+        if (nextSize >= 2 * q->connectionSizeLimit())
+            nextSize = q->connectionSizeLimit();
+        createConnection(resolvedUrl, nextPos, nextPos + nextSize - 1);
+    }
 }
 
 void FastDownloaderPrivate::_q_readyRead()

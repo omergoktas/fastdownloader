@@ -46,6 +46,9 @@ public:
     int generateUniqueId() const;
     bool downloadCompleted() const;
     bool connectionExists(int id) const;
+    bool nextPortionAvailable() const;
+    qint64 nextPortionPosition() const;
+    qint64 untargetedDataSize() const;
 
     Connection* connectionFor(int id) const;
     Connection* connectionFor(const QObject* sender) const;
