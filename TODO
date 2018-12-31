@@ -3,10 +3,4 @@
 - Let the user to be able to save a downloading state, hence he can later restore and continue to download.
 - Let the user to be able to play/pause the download.
 - Let the user have more control over error states (i.e do not simply stop downloading and clear everything)
-
-- Update readme and publish a release on github after testing the lib with some applications (i.e FastMediaPlayer)
-- Add doxygen documentations and example codes
-- Clear inline todos, beautify this file
-- Reorder and clean functions and variables
-- Finish the feature that spawns new connections in order to complete downloading whenver a connection finishes downloading issued chunk that restricted with chunk size limit
-- Drop it down to C++11, from C++14
+- Add doxygen documentations

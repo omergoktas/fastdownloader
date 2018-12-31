@@ -21,7 +21,7 @@
 ##**************************************************************************
 
 QT          += core-private network
-CONFIG      += c++14
+CONFIG      += c++11
 
 DEFINES     += FASTDOWNLOADER_INCLUDE_STATIC
 

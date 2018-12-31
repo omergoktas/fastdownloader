@@ -36,33 +36,38 @@ class FASTDOWNLOADER_EXPORT FastDownloader : public QObject
     Q_DISABLE_COPY(FastDownloader)
     Q_DECLARE_PRIVATE(FastDownloader)
 
+public:
     enum {
         // Note: QNetworkAccessManager queues the requests it receives. The number of requests
         // executed in parallel is dependent on the protocol. Currently, for the HTTP protocol
         // on desktop platforms, 6 requests are executed in parallel for one host/port combination.
-        MAX_PARALLEL_CONNECTIONS = 6,
+        MAX_SIMULTANEOUS_CONNECTIONS = 6,
 
-        // The minimum possible content size allowed for parallel downloads. Lesser sized data
-        // will not be downloaded with parallel download feature (100 Kb).
-        MIN_CONTENT_SIZE = 102400
+        // The minimum possible chunk size allowed for simultaneous downloads. Lesser sized chunks are
+        // not allowed (10 Kb). Zero (0) is allowed for chunk size limit and it means no limit.
+        MIN_CHUNK_SIZE = 10240,
+
+        // The minimum possible content size allowed for simultaneous downloads. Lesser sized data
+        // will not be downloaded with simultaneous download feature (100 Kb).
+        MIN_SIMULTANEOUS_CONTENT_SIZE = 102400
     };
 
 public:
-    explicit FastDownloader(const QUrl& url, int numberOfParallelConnections = 5, QObject* parent = nullptr);
+    explicit FastDownloader(const QUrl& url, int numberOfSimultaneousConnections = 5, QObject* parent = nullptr);
     explicit FastDownloader(QObject* parent = nullptr);
     ~FastDownloader() override;
 
     QUrl url() const;
     void setUrl(const QUrl& url);
 
-    int numberOfParallelConnections() const;
-    void setNumberOfParallelConnections(int numberOfParallelConnections);
+    int numberOfSimultaneousConnections() const;
+    void setNumberOfSimultaneousConnections(int numberOfSimultaneousConnections);
 
     int maxRedirectsAllowed() const;
     void setMaxRedirectsAllowed(int maxRedirectsAllowed);
 
-    qint64 connectionSizeLimit() const;
-    void setConnectionSizeLimit(qint64 connectionSizeLimit);
+    qint64 chunkSizeLimit() const;
+    void setChunkSizeLimit(qint64 chunkSizeLimit);
 
     qint64 readBufferSize() const;
     void setReadBufferSize(qint64 size);
@@ -81,7 +86,7 @@ public:
     bool isRunning() const;
     bool isFinished() const; // exists for convenience
     bool isResolved() const;
-    bool isParallelDownloadPossible() const;
+    bool isSimultaneousDownloadPossible() const;
 
     bool atEnd(int id) const;
 
@@ -134,9 +139,9 @@ private:
 
 private:
     QUrl m_url;
-    int m_numberOfParallelConnections;
+    int m_numberOfSimultaneousConnections;
     int m_maxRedirectsAllowed;
-    qint64 m_connectionSizeLimit;
+    qint64 m_chunkSizeLimit;
     qint64 m_readBufferSize;
     QSslConfiguration m_sslConfiguration;
 };

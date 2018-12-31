@@ -56,17 +56,17 @@ public:
 
     void free();
     void reset();
-    void startParallelDownloading();
+    void startSimultaneousDownloading();
     void deleteConnection(Connection* connection);
     void createConnection(const QUrl& url, qint64 begin = -1, qint64 end = -1);
 
     static qint64 testContentLength(const Connection* connection);
-    static bool testParallelDownload(const Connection* connection);
+    static bool testSimultaneousDownload(const Connection* connection);
 
     QScopedPointer<QNetworkAccessManager> manager;
     bool running;
     bool resolved;
-    bool parallelDownloadPossible;
+    bool simultaneousDownloadPossible;
     QUrl resolvedUrl;
     qint64 contentLength;
     qint64 totalBytesReceived;

@@ -2,7 +2,7 @@
 Basic utility library based on Qt/C++ for fast, parallel downloads. It lets you download a file with more than one simultaneous connection.
 
 ## Basic usage
-> C++14 needed
+> C++11 needed
 ```cpp
 #include <QCoreApplication>
 #include <QBuffer>
@@ -16,7 +16,7 @@ int main(int argc, char* argv[])
     auto buffer = new QBuffer;
     auto file = new QFile("/Users/omergoktas/Desktop/Dragon and Toast.mp3"); //!!! Change this
     auto downloader = new FastDownloader(QUrl("https://bit.ly/2EXm5LF"));
-    downloader->setNumberOfParallelConnections(5);
+    downloader->setNumberOfSimultaneousConnections(5);
 
     if (!downloader->start()) {
         qWarning("Cannot start downloading for some reason");
@@ -30,12 +30,12 @@ int main(int argc, char* argv[])
         buffer->write(downloader->readAll(id));
     });
 
-    QObject::connect(downloader, qOverload<qint64,qint64>(&FastDownloader::downloadProgress),
+    QObject::connect(downloader, QOverload<qint64,qint64>::of(&FastDownloader::downloadProgress),
                      [=] (qint64 bytesReceived, qint64 bytesTotal) {
         qWarning("Download Progress: %lld of %lld", bytesReceived, bytesTotal);
     });
 
-    QObject::connect(downloader, qOverload<>(&FastDownloader::finished), [=] {
+    QObject::connect(downloader, QOverload<>::of(&FastDownloader::finished), [=] {
         buffer->close();
         if (downloader->bytesReceived() > 0) {
             file->open(QIODevice::WriteOnly);

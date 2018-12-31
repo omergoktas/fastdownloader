@@ -27,7 +27,7 @@ FastDownloaderPrivate::FastDownloaderPrivate() : QObjectPrivate()
   , manager(new QNetworkAccessManager)
   , running(false)
   , resolved(false)
-  , parallelDownloadPossible(false)
+  , simultaneousDownloadPossible(false)
   , contentLength(0)
   , totalBytesReceived(0)
   , error(QNetworkReply::NoError)
@@ -69,9 +69,9 @@ bool FastDownloaderPrivate::nextPortionAvailable() const
 {
     Q_Q(const FastDownloader);
 
-    if (parallelDownloadPossible
-            && q->connectionSizeLimit() > 0
-            && q->numberOfParallelConnections() > 1) {
+    if (simultaneousDownloadPossible
+            && q->chunkSizeLimit() > 0
+            && q->numberOfSimultaneousConnections() > 1) {
         qint64 bytesTotal = 0;
         for (Connection* connection : connections)
             bytesTotal += connection->bytesTotal;
@@ -156,21 +156,21 @@ void FastDownloaderPrivate::reset()
 {
     running = true;
     resolved = false;
-    parallelDownloadPossible = false;
+    simultaneousDownloadPossible = false;
     resolvedUrl.clear();
     contentLength = 0;
     totalBytesReceived = 0;
     error = QNetworkReply::NoError;
 }
 
-void FastDownloaderPrivate::startParallelDownloading()
+void FastDownloaderPrivate::startSimultaneousDownloading()
 {
     Q_Q(const FastDownloader);
 
     if (!running
             || !resolved
-            || !parallelDownloadPossible
-            || q->numberOfParallelConnections() < 2) {
+            || !simultaneousDownloadPossible
+            || q->numberOfSimultaneousConnections() < 2) {
         return;
     }
 
@@ -182,18 +182,18 @@ void FastDownloaderPrivate::startParallelDownloading()
         begin = end + 1;
 
         qint64 slice = 0;
-        if (i == q->numberOfParallelConnections() - 1)
+        if (i == q->numberOfSimultaneousConnections() - 1)
             slice = contentLength - begin;
         else
-            slice = contentLength / q->numberOfParallelConnections();
+            slice = contentLength / q->numberOfSimultaneousConnections();
 
-        if (q->connectionSizeLimit() > 0)
-            end = begin + qMin(q->connectionSizeLimit(), slice) - 1;
+        if (q->chunkSizeLimit() > 0)
+            end = begin + qMin(q->chunkSizeLimit(), slice) - 1;
         else
             end = begin + slice - 1;
 
         createConnection(resolvedUrl, begin, end);
-    } while(++i < q->numberOfParallelConnections());
+    } while(++i < q->numberOfSimultaneousConnections());
 }
 
 void FastDownloaderPrivate::deleteConnection(FastDownloaderPrivate::Connection* connection)
@@ -266,7 +266,7 @@ qint64 FastDownloaderPrivate::testContentLength(const FastDownloaderPrivate::Con
     return contentLength.toLongLong();
 }
 
-bool FastDownloaderPrivate::testParallelDownload(const FastDownloaderPrivate::Connection* connection)
+bool FastDownloaderPrivate::testSimultaneousDownload(const FastDownloaderPrivate::Connection* connection)
 {
     Q_ASSERT(connection && connection->reply);
 
@@ -274,7 +274,7 @@ bool FastDownloaderPrivate::testParallelDownload(const FastDownloaderPrivate::Co
             && connection->reply->hasRawHeader("Content-Length")
             && connection->reply->rawHeader("Accept-Ranges") == "bytes"
             && connection->reply->rawHeader("Content-Length").toLongLong() > connection->reply->bytesAvailable()
-            && connection->reply->rawHeader("Content-Length").toLongLong() > FastDownloader::MIN_CONTENT_SIZE;
+            && connection->reply->rawHeader("Content-Length").toLongLong() >= FastDownloader::MIN_SIMULTANEOUS_CONTENT_SIZE;
 }
 
 void FastDownloaderPrivate::_q_finished()
@@ -306,8 +306,8 @@ void FastDownloaderPrivate::_q_finished()
     qint64 nextPos = nextPortionPosition();
     if (nextPos > 0) {
         qint64 nextSize = untargetedDataSize();
-        if (nextSize >= 2 * q->connectionSizeLimit())
-            nextSize = q->connectionSizeLimit();
+        if (nextSize >= 2 * q->chunkSizeLimit())
+            nextSize = q->chunkSizeLimit();
         createConnection(resolvedUrl, nextPos, nextPos + nextSize - 1);
     }
 }
@@ -328,16 +328,16 @@ void FastDownloaderPrivate::_q_readyRead()
         resolved = true;
         resolvedUrl = connection->reply->url();
         contentLength = testContentLength(connection);
-        parallelDownloadPossible = testParallelDownload(connection);
+        simultaneousDownloadPossible = testSimultaneousDownload(connection);
 
         emit q->resolved(resolvedUrl);
 
         if (connection->reply->isRunning()
-                && parallelDownloadPossible
-                && q->numberOfParallelConnections() > 1) {
+                && simultaneousDownloadPossible
+                && q->numberOfSimultaneousConnections() > 1) {
             totalBytesReceived = 0;
             deleteConnection(connection);
-            startParallelDownloading();
+            startSimultaneousDownloading();
         } else {
             connection->bytesTotal = contentLength;
             emit q->readyRead(connection->id);
@@ -381,12 +381,12 @@ void FastDownloaderPrivate::_q_downloadProgress(qint64 /*bytesReceived*/, qint64
         emit q->downloadProgress(totalBytesReceived, contentLength);
 }
 
-FastDownloader::FastDownloader(const QUrl& url, int numberOfParallelConnections, QObject* parent)
+FastDownloader::FastDownloader(const QUrl& url, int numberOfSimultaneousConnections, QObject* parent)
     : QObject(*(new FastDownloaderPrivate), parent)
     , m_url(url)
-    , m_numberOfParallelConnections(numberOfParallelConnections)
+    , m_numberOfSimultaneousConnections(numberOfSimultaneousConnections)
     , m_maxRedirectsAllowed(5)
-    , m_connectionSizeLimit(0)
+    , m_chunkSizeLimit(0)
     , m_readBufferSize(0)
     , m_sslConfiguration(QSslConfiguration::defaultConfiguration())
 {
@@ -425,22 +425,22 @@ void FastDownloader::setUrl(const QUrl& url)
     m_url = url;
 }
 
-int FastDownloader::numberOfParallelConnections() const
+int FastDownloader::numberOfSimultaneousConnections() const
 {
-    return m_numberOfParallelConnections;
+    return m_numberOfSimultaneousConnections;
 }
 
-void FastDownloader::setNumberOfParallelConnections(int numberOfParallelConnections)
+void FastDownloader::setNumberOfSimultaneousConnections(int numberOfSimultaneousConnections)
 {
     Q_D(const FastDownloader);
 
     if (d->running) {
-        qWarning("FastDownloader::setNumberOfParallelConnections: "
+        qWarning("FastDownloader::setNumberOfSimultaneousConnections: "
                  "Cannot set, a download is already in progress");
         return;
     }
 
-    m_numberOfParallelConnections = numberOfParallelConnections;
+    m_numberOfSimultaneousConnections = numberOfSimultaneousConnections;
 }
 
 int FastDownloader::maxRedirectsAllowed() const
@@ -461,21 +461,21 @@ void FastDownloader::setMaxRedirectsAllowed(int maxRedirectsAllowed)
     m_maxRedirectsAllowed = maxRedirectsAllowed;
 }
 
-qint64 FastDownloader::connectionSizeLimit() const
+qint64 FastDownloader::chunkSizeLimit() const
 {
-    return m_connectionSizeLimit;
+    return m_chunkSizeLimit;
 }
 
-void FastDownloader::setConnectionSizeLimit(qint64 connectionSizeLimit)
+void FastDownloader::setChunkSizeLimit(qint64 chunkSizeLimit)
 {
     Q_D(const FastDownloader);
 
     if (d->running) {
-        qWarning("FastDownloader::setConnectionSizeLimit: Cannot set, a download is already in progress");
+        qWarning("FastDownloader::setChunkSizeLimit: Cannot set, a download is already in progress");
         return;
     }
 
-    m_connectionSizeLimit = connectionSizeLimit;
+    m_chunkSizeLimit = chunkSizeLimit;
 }
 
 qint64 FastDownloader::readBufferSize() const
@@ -566,10 +566,10 @@ bool FastDownloader::isResolved() const
     return d->resolved;
 }
 
-bool FastDownloader::isParallelDownloadPossible() const
+bool FastDownloader::isSimultaneousDownloadPossible() const
 {
     Q_D(const FastDownloader);
-    return d->parallelDownloadPossible;
+    return d->simultaneousDownloadPossible;
 }
 
 bool FastDownloader::atEnd(int id) const
@@ -860,10 +860,15 @@ bool FastDownloader::start()
         return false;
     }
 
-    if (m_numberOfParallelConnections < 1
-            || m_numberOfParallelConnections > MAX_PARALLEL_CONNECTIONS) {
-        qWarning("FastDownloader::start: Number of parallel connections is incorrect, "
-                 "It may exceeds maximum number of parallel connections allowed");
+    if (m_numberOfSimultaneousConnections < 1
+            || m_numberOfSimultaneousConnections > MAX_SIMULTANEOUS_CONNECTIONS) {
+        qWarning("FastDownloader::start: Number of simultaneous connections is incorrect, "
+                 "It may exceeds maximum number of simultaneous connections allowed");
+        return false;
+    }
+
+    if (m_chunkSizeLimit < MIN_CHUNK_SIZE && m_chunkSizeLimit != 0) {
+        qWarning("FastDownloader::start: Chunk size limit is too small.");
         return false;
     }
 
