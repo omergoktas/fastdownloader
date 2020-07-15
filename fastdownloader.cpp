@@ -36,11 +36,9 @@ FastDownloaderPrivate::FastDownloaderPrivate() : QObjectPrivate()
 
 int FastDownloaderPrivate::generateUniqueId() const
 {
-    static const int min = std::numeric_limits<int>::min();
-    static const int max = std::numeric_limits<int>::max();
     int id;
     do {
-        id = QRandomGenerator::global()->bounded(min, max);
+        id = (int) QRandomGenerator::global()->generate();
     } while(connectionExists(id));
     return id;
 }
