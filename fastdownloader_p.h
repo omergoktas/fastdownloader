@@ -23,7 +23,7 @@
 #ifndef FASTDOWNLOADER_P_H
 #define FASTDOWNLOADER_P_H
 
-#include <fastdownloader.h>
+#include "fastdownloader.h"
 #include <private/qobject_p.h>
 
 class FastDownloaderPrivate : public QObjectPrivate

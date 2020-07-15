@@ -20,7 +20,7 @@
 **
 ****************************************************************************/
 
-#include <fastdownloader_p.h>
+#include "fastdownloader_p.h"
 #include <QRandomGenerator>
 
 FastDownloaderPrivate::FastDownloaderPrivate() : QObjectPrivate()

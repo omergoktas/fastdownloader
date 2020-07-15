@@ -23,7 +23,7 @@
 #ifndef FASTDOWNLOADER_H
 #define FASTDOWNLOADER_H
 
-#include <fastdownloader_global.h>
+#include "fastdownloader_global.h"
 
 #include <QUrl>
 #include <QSslError>
