@@ -67,8 +67,8 @@ public:
         MIN_CHUNK_SIZE = 10240,
 
         // The minimum possible content size allowed for simultaneous downloads. Lesser sized data
-        // will not be downloaded with simultaneous download feature (100 Kb).
-        MIN_SIMULTANEOUS_CONTENT_SIZE = 102400
+        // will not be downloaded with simultaneous download feature (2 Mb).
+        MIN_SIMULTANEOUS_CONTENT_SIZE = 2097152
     };
 
 public:
