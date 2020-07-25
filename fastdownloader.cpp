@@ -292,6 +292,7 @@ void FastDownloaderPrivate::_q_finished()
     emit q->finished(id);
 
     if (error != QNetworkReply::NoError) {
+        this->error = error;
         q->abort();
         return;
     }
@@ -349,6 +350,7 @@ void FastDownloaderPrivate::_q_redirected(const QUrl& url)
 
     if (resolved) {
         qWarning("WARNING: Suspicious redirection rejected");
+        error = QNetworkReply::InsecureRedirectError;
         q->abort();
         return;
     }
@@ -401,9 +403,11 @@ FastDownloader::FastDownloader(FastDownloaderPrivate& dd, QObject* parent)
 
 FastDownloader::~FastDownloader()
 {
-    Q_D(const FastDownloader);
-    if (d->running)
+    Q_D(FastDownloader);
+    if (d->running) {
+        d->error = QNetworkReply::OperationCanceledError;
         abort();
+    }
 }
 
 QUrl FastDownloader::url() const
@@ -892,7 +896,6 @@ void FastDownloader::abort()
 
     const QList<FastDownloaderPrivate::Connection>& fakeConnections = d->createFakeCopyForActiveConnections();
 
-    d->error = QNetworkReply::OperationCanceledError;
     d->running = false;
     d->free();
 
