@@ -22,10 +22,7 @@
 
 QT          += core-private network
 CONFIG      += c++11
-
 DEFINES     += FASTDOWNLOADER_INCLUDE_STATIC
-
-DEPENDPATH  += $$PWD
 INCLUDEPATH += $$PWD
 
 SOURCES     += $$PWD/fastdownloader.cpp
